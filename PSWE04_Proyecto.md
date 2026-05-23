@@ -8,7 +8,7 @@
 |---|---|
 | **Nombre del sistema** | SmartBilling Connect |
 | **Grupo** | D |
-| **Integrantes** | [Edgar Jacob — Carné], [Brandon Garita — 207180701], [Alejandro Mora — 111890536] |
+| **Integrantes** | [Edgar Jacob — 117660514], [Brandon Garita — 207180701], [Alejandro Mora — 111890536] |
 | **URL del repositorio** | [https://github.com/amoramongeCenfo/PSWE-04-Dise-o-de-Sistemas-de-Software/tree/main] |
 | **Docente** | [JUAN MAURICIO LEANDRO JIMENEZ] |
 | **Cuatrimestre** | [2026 — 02] |
