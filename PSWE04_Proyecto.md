@@ -8,7 +8,7 @@
 |---|---|
 | **Nombre del sistema** | SmartBilling Connect |
 | **Grupo** | D |
-| **Integrantes** | [Edgar Jacob — Carné], [Brandon Garita — 207180701], [Alejandro Mora — 111890536] |
+| **Integrantes** | [Edgar Jacob — 117660514], [Brandon Garita — 207180701], [Alejandro Mora — 111890536] |
 | **URL del repositorio** | [https://github.com/amoramongeCenfo/PSWE-04-Dise-o-de-Sistemas-de-Software/tree/main] |
 | **Docente** | [JUAN MAURICIO LEANDRO JIMENEZ] |
 | **Cuatrimestre** | [2026 — 02] |
@@ -229,7 +229,7 @@ El sistema no implementa una tienda virtual pública, marketplace o carrito de c
 
 ---
 
-## 4. Requerimientos de calidad — Escenarios
+## 4. Requerimientos de calidad — Escenarios 
 
 > **Instrucciones:** Un escenario de calidad es una descripción concreta y medible de cómo el sistema debe responder ante un estímulo específico. No son deseos generales ("el sistema debe ser rápido") — son compromisos verificables. Usá el formato ISO/IEEE de 6 elementos. Se requieren **mínimo 4 escenarios**, cubriendo al menos 3 atributos de calidad distintos. Asegurate de que algunos atributos entren en tensión entre sí — eso evidencia decisiones arquitectónicas reales.
 >
@@ -240,6 +240,8 @@ El sistema no implementa una tienda virtual pública, marketplace o carrito de c
 > - **Artefacto:** qué parte del sistema recibe el estímulo
 > - **Respuesta:** qué hace el sistema ante ese estímulo
 > - **Medida de respuesta:** cómo sabemos que la respuesta es aceptable (número concreto, no "rápido" o "disponible")
+
+
 
 ### Escenario QS-01 — [Nombre del atributo: ej. Rendimiento]
 
@@ -273,12 +275,29 @@ El sistema no implementa una tienda virtual pública, marketplace o carrito de c
 
 ### Escenario QS-03 — [Nombre del atributo]
 *(Repetir la tabla para cada escenario adicional)*
+| Elemento | Descripción |
+|---|---|
+| **Fuente del estímulo** | |
+| **Estímulo** | |
+| **Entorno** | |
+| **Artefacto** | |
+| **Respuesta** | |
+| **Medida de respuesta** | |
 
----
+*Tensión con:* [o "Sin tensión identificada con otros escenarios"]
 
 ### Escenario QS-04 — [Nombre del atributo]
 
----
+| Elemento | Descripción |
+|---|---|
+| **Fuente del estímulo** | |
+| **Estímulo** | |
+| **Entorno** | |
+| **Artefacto** | |
+| **Respuesta** | |
+| **Medida de respuesta** | |
+
+*Tensión con:* [o "Sin tensión identificada con otros escenarios"]
 
 ## 5. Restricciones
 
