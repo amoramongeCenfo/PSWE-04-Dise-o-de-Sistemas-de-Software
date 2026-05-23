@@ -63,40 +63,125 @@
 ## 1. Descripción del sistema y alcance
 
 ### 1.1 Descripción general
-> **Instrucciones:** Describí el sistema en 2-3 párrafos. Respondé: ¿qué hace el sistema?, ¿para quién existe?, ¿qué problema real resuelve y por qué ese problema merece un sistema de software? No describas la solución técnica aquí — eso va en las vistas. Describí el problema y el valor que el sistema entrega.
+El sistema propuesto consiste en una plataforma de facturación electrónica inteligente orientada a pequeñas y medianas empresas (PYMES) que comercializan productos y servicios mediante redes sociales y canales digitales. Su propósito principal es centralizar y simplificar la gestión comercial y administrativa de negocios que actualmente manejan sus ventas de forma manual, utilizando múltiples herramientas desconectadas entre sí. La plataforma permitirá administrar clientes, registrar ventas y gestionar comprobantes electrónicos, brindando trazabilidad y control sobre el proceso comercial.
 
-[Completar]
+Actualmente, muchas PYMES utilizan redes sociales como principal canal de ventas, especialmente plataformas de mensajería y comercio digital. Sin embargo, estos negocios enfrentan problemas relacionados con la duplicidad de información, pérdida de seguimiento de clientes, errores en la generación de facturas y procesos operativos poco eficientes. En muchos casos, las conversaciones con clientes ocurren en redes sociales mientras la facturación se realiza manualmente en otros sistemas, generando retrasos, inconsistencias y una alta dependencia de tareas repetitivas realizadas por el personal administrativo.
+
+El sistema busca resolver este problema mediante una solución integrada que permita conectar la actividad comercial con los procesos de facturación electrónica y seguimiento de clientes. El valor principal de la plataforma radica en reducir la carga operativa, mejorar la eficiencia administrativa y aumentar la trazabilidad de las ventas realizadas por medios digitales. Además, permitirá a los negocios responder con mayor rapidez a sus clientes, disminuir errores humanos y cumplir con las obligaciones fiscales de forma más ordenada y automatizada.
 
 ### 1.2 Contexto del negocio o dominio
-> **Instrucciones:** Describí el dominio en el que opera el sistema. Incluí información del negocio, regulaciones relevantes, procesos que el sistema soporta o reemplaza, y cualquier contexto que un arquitecto necesitaría conocer antes de tomar decisiones de diseño. Máximo 1 página.
+El sistema se desarrolla dentro del dominio de comercio digital y facturación electrónica para pequeñas y medianas empresas (PYMES). En Costa Rica y otros países de la región, una gran cantidad de negocios utilizan redes sociales como principal canal de ventas y atención al cliente, especialmente mediante plataformas de mensajería y comercio social. Muchos emprendimientos realizan cotizaciones, coordinan pedidos y concretan ventas directamente desde aplicaciones como Instagram, Facebook o WhatsApp, mientras que la facturación y el control administrativo se gestionan posteriormente de forma manual o mediante herramientas independientes.
 
-[Completar]
+Este modelo operativo genera múltiples problemas de negocio: duplicidad de información, errores de digitación, falta de trazabilidad entre conversaciones y ventas, dificultad para monitorear clientes potenciales y dependencia excesiva de procesos manuales. Además, conforme aumenta el volumen de ventas, las empresas enfrentan dificultades para mantener consistencia en la información fiscal y brindar tiempos de respuesta rápidos a sus clientes. El sistema propuesto busca soportar y optimizar estos procesos mediante la integración de la gestión comercial con la facturación electrónica y automatización de flujos operativos.
+
+Dentro del dominio existen regulaciones relevantes asociadas principalmente al cumplimiento tributario. En Costa Rica, la emisión de comprobantes electrónicos debe cumplir con los lineamientos definidos por el Ministerio de Hacienda, incluyendo validación fiscal, almacenamiento de documentos electrónicos y manejo adecuado de información tributaria. Esto implica requisitos relacionados con seguridad, integridad de datos, auditoría y trazabilidad de transacciones. El sistema deberá garantizar que las facturas emitidas sean válidas conforme a la normativa vigente y que exista un historial verificable de las operaciones realizadas.
+
+El sistema también se relaciona con procesos comerciales y de atención al cliente. Entre los procesos soportados se encuentran: registro y administración de clientes, generación de cotizaciones, emisión de comprobantes electrónicos, seguimiento de ventas, automatización de respuestas y sincronización de información proveniente de redes sociales. Parte importante del dominio es la automatización de tareas repetitivas, permitiendo que eventos generados en plataformas externas activen flujos de negocio relacionados con ventas o facturación.
+
+Desde una perspectiva arquitectónica, el dominio presenta retos relevantes relacionados con integración de sistemas externos, manejo seguro de información fiscal, tolerancia a fallos en procesos de facturación y coordinación de eventos provenientes de múltiples canales digitales. También existe una tensión importante entre rapidez de respuesta en la atención comercial y consistencia de la información transaccional, especialmente cuando varios usuarios o integraciones interactúan simultáneamente con los mismos datos comerciales y fiscales.
 
 ### 1.3 Alcance del sistema
 
-**Dentro del alcance — el sistema HACE:**
-> **Instrucciones:** Listá las capacidades que el sistema provee. Sé específico. "Gestiona usuarios" no es suficiente — "permite el registro, autenticación y gestión de perfiles de hasta tres tipos de usuario con permisos diferenciados" sí lo es.
+#### 1.3.1 Gestión de usuarios y acceso
 
-- [Capacidad 1]
-- [Capacidad 2]
-- [Capacidad N]
+El sistema permite el registro, autenticación y administración de usuarios con roles diferenciados, incluyendo administrador, vendedor y asistente administrativo, cada uno con permisos específicos según sus responsabilidades.
 
-**Fuera del alcance — el sistema NO HACE:**
-> **Instrucciones:** Esta sección es tan importante como la anterior. Listá explícitamente qué no hace el sistema y, cuando sea relevante, por qué. Esto previene scope creep y aclara las fronteras del diseño.
+#### 1.3.2 Administración de clientes
 
-- [Exclusión 1 — y razón si aplica]
-- [Exclusión 2]
-- [Exclusión N]
+El sistema permite registrar, consultar y actualizar información de clientes, incluyendo datos fiscales, información de contacto e historial de compras y facturación.
+
+#### 1.3.3 Emisión de facturación electrónica
+
+El sistema permite generar, emitir, almacenar y consultar comprobantes electrónicos conforme a la normativa tributaria vigente.
+
+#### 1.3.4 Gestión de cotizaciones
+
+El sistema permite generar cotizaciones comerciales y convertirlas posteriormente en facturas electrónicas manteniendo trazabilidad entre ambos procesos.
+
+#### 1.3.5 Integración con redes sociales
+
+El sistema permite recibir y relacionar eventos o interacciones provenientes de redes sociales y canales digitales con procesos comerciales internos.
+
+#### 1.3.6 Monitoreo de comprobantes electrónicos
+
+El sistema permite consultar y monitorear el estado de documentos electrónicos enviados a la administración tributaria.
+
+#### 1.3.7 Gestión de productos y servicios
+
+El sistema permite administrar catálogos básicos de productos y servicios utilizados en cotizaciones y facturación.
+
+#### 1.3.8 Consulta y trazabilidad comercial
+
+El sistema permite consultar historial de ventas, facturación e interacciones comerciales mediante filtros y búsquedas avanzadas.
+
+#### 1.3.9 Gestión de permisos y auditoría
+
+El sistema permite controlar accesos según roles y registrar auditoría de acciones realizadas por usuarios y automatizaciones externas.
+
+#### 1.3.10 Notificaciones y comunicación
+
+El sistema permite enviar comprobantes electrónicos y notificaciones a clientes mediante correo electrónico u otros canales configurados.
+
+
+**Fuera del alcance**
+#### 1.3.13 ERP financiero y contabilidad avanzada
+
+El sistema no implementa funcionalidades completas de ERP financiero o contable, como contabilidad general, conciliaciones bancarias, cuentas por pagar o generación de estados financieros.
+
+#### 1.3.14 Gestión avanzada de inventarios
+
+El sistema no administra procesos avanzados de inventario, tales como manejo multi-bodega, trazabilidad física, logística de distribución o planificación de abastecimiento.
+
+#### 1.3.15 Procesamiento directo de pagos
+
+El sistema no procesa pagos electrónicos directamente ni funciona como pasarela de pago financiera. Las transacciones monetarias dependerán de servicios externos especializados.
+
+#### 1.3.16 CRM empresarial avanzado
+
+El sistema no reemplaza plataformas completas de CRM empresarial; únicamente administra información comercial relacionada con ventas, clientes y facturación.
+
+#### 1.3.17 Marketing digital y publicidad
+
+El sistema no realiza campañas de marketing digital, segmentación publicitaria ni administración de anuncios pagados en redes sociales.
+
+#### 1.3.18 Almacenamiento completo de conversaciones
+
+El sistema no almacena conversaciones completas provenientes de redes sociales de forma indefinida, excepto la información necesaria para trazabilidad comercial y automatización de procesos.
+
+#### 1.3.19 Gestión de recursos humanos
+
+El sistema no incluye funcionalidades relacionadas con nómina, control de personal, recursos humanos o administración de empleados.
+
+#### 1.3.20 Inteligencia artificial conversacional avanzada
+
+El sistema no implementa asistentes inteligentes avanzados ni reemplaza completamente la atención humana al cliente; únicamente soporta automatizaciones configuradas.
+
+#### 1.3.21 Disponibilidad de servicios externos
+
+El sistema no garantiza disponibilidad continua de APIs externas, plataformas tributarias, servicios de redes sociales o herramientas de automatización integradas.
+
+#### 1.3.22 Soporte multinacional
+
+El sistema no contempla inicialmente adaptación automática a regulaciones fiscales de múltiples países; el alcance se limita al contexto tributario costarricense.
+
+#### 1.3.23 Business Intelligence avanzado
+
+El sistema no incluye funcionalidades avanzadas de analítica empresarial, minería de datos o procesamiento masivo orientado a Business Intelligence.
+
+#### 1.3.24 Plataforma completa de comercio electrónico
+
+El sistema no implementa una tienda virtual pública, marketplace o carrito de compras completo para comercio electrónico.
 
 ### 1.4 Usuarios y casos de uso principales
-> **Instrucciones:** Listá los tipos de usuario del sistema y los 3-5 casos de uso más importantes de cada tipo. No es un documento de requerimientos completo — es suficiente para que un arquitecto entienda qué debe soportar el sistema.
-
 | Tipo de usuario | Casos de uso principales |
 |---|---|
-| [Tipo 1] | [CU1], [CU2], [CU3] |
-| [Tipo 2] | [CU1], [CU2] |
+| Administrador del sistema | Configurar parámetros fiscales y de integración, administrar usuarios y permisos, monitorear automatizaciones, auditar actividades del sistema, consultar métricas operativas |
+| Vendedor / Ejecutivo comercial | Registrar clientes, generar cotizaciones, convertir cotizaciones en facturas electrónicas, consultar historial comercial, gestionar seguimiento de ventas provenientes de redes sociales |
+| Asistente administrativo | Emitir facturas electrónicas, validar información fiscal de clientes, reenviar comprobantes electrónicos, consultar estados tributarios, corregir errores operativos de facturación |
+| Cliente final | Recibir comprobantes electrónicos, consultar cotizaciones enviadas, confirmar pedidos o servicios, recibir notificaciones comerciales, interactuar mediante canales digitales |
+| Plataforma de automatización (n8n) | Ejecutar flujos automáticos, recibir eventos comerciales, disparar procesos de facturación, sincronizar información entre sistemas, generar notificaciones automáticas |
+| Servicios externos tributarios | Validar comprobantes electrónicos, recibir documentos fiscales, retornar estados de aceptación o rechazo, verificar cumplimiento tributario |
 
----
 
 ## 2. Stakeholders
 
