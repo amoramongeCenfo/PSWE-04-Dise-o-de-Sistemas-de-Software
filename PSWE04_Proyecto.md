@@ -1,4 +1,4 @@
-# [NOMBRE DEL SISTEMA]
+# [SmartBilling Connect]
 > Documento de Diseño de Software — PSWE-04  
 > Universidad Cenfotec · Maestría Profesional en Ingeniería del Software
 
@@ -6,14 +6,14 @@
 
 | Campo | Detalle |
 |---|---|
-| **Nombre del sistema** | [Nombre completo del sistema] |
-| **Grupo** | [Número de grupo] |
-| **Integrantes** | [Nombre — Carné], [Nombre — Carné], [Nombre — Carné], [Nombre — Carné] |
-| **URL del repositorio** | [https://github.com/...] |
-| **Docente** | [Nombre del docente] |
-| **Cuatrimestre** | [Año — Cuatrimestre] |
+| **Nombre del sistema** | SmartBilling Connect |
+| **Grupo** | D |
+| **Integrantes** | [Edgar Jacob — Carné], [Brandon Garita — 207180701], [Alejandro Mora — 111890536] |
+| **URL del repositorio** | [https://github.com/amoramongeCenfo/PSWE-04-Dise-o-de-Sistemas-de-Software/tree/main] |
+| **Docente** | [JUAN MAURICIO LEANDRO JIMENEZ] |
+| **Cuatrimestre** | [2026 — 02] |
 | **Versión del documento** | 0.1 — Propuesta inicial |
-| **Fecha de última actualización** | [YYYY-MM-DD] |
+| **Fecha de última actualización** | [2026-05-23] |
 
 ---
 
@@ -21,7 +21,7 @@
 
 | Versión | Fecha | Hito | Cambios principales | Autor(es) |
 |---|---|---|---|---|
-| 0.1 | [fecha] | Propuesta (S03) | Creación del documento inicial | [nombres] |
+| 0.1 | [22-06-2023] | Propuesta (S03) | Creación del documento inicial | [Edgar Jacob, Brandon Garita, Alejandro Mora] |
 | 0.2 | [fecha] | Avance 1 (S07) | [descripción] | [nombres] |
 | 0.3 | [fecha] | Avance 2 (S11) | [descripción] | [nombres] |
 | 1.0 | [fecha] | Entrega final (S14) | Documento completo | [nombres] |
