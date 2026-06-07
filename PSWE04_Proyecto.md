@@ -183,17 +183,115 @@ El sistema no implementa una tienda virtual pública, marketplace o carrito de c
 | Servicios externos tributarios | Validar comprobantes electrónicos, recibir documentos fiscales, retornar estados de aceptación o rechazo, verificar cumplimiento tributario |
 
 
-## 2. Stakeholders
-
-> **Instrucciones:** Un stakeholder es cualquier persona, grupo u organización que tiene interés en el sistema — no solo los usuarios. Incluí desarrolladores, operadores, reguladores, áreas de negocio, proveedores externos. Para cada uno identificá: qué quieren del sistema y qué les preocupa. Esta tabla es la base de los drivers arquitectónicos de la sección 3.
-
-| Stakeholder | Rol | Intereses principales | Preocupaciones o restricciones |
-|---|---|---|---|
-| [Nombre/Rol] | [Descripción] | [Qué valora o necesita del sistema] | [Qué le preocupa o qué restricciones impone] |
-| [Nombre/Rol] | | | |
 
 ---
-
+# 2. Stakeholders
+ 
+**Plataforma de Facturación Electrónica Inteligente con Automatización Comercial y Redes Sociales**
+ 
+Un stakeholder es cualquier persona, grupo u organización que tiene interés en el sistema, no solo los usuarios directos. Esta sección incluye desarrolladores, operadores, reguladores, áreas de negocio y proveedores externos. Para cada uno se identifica qué quieren del sistema y qué les preocupa. Esta tabla es la base de los drivers arquitectónicos de la sección 3.
+ 
+---
+ 
+## STK-01: Dueños de PYMES
+ 
+**Rol:** Propietarios y tomadores de decisiones de pequeñas y medianas empresas que venden a través de redes sociales.
+ 
+| Intereses principales | Preocupaciones o restricciones |
+|---|---|
+| Reducir la carga operativa en facturación y gestión de ventas. | Costo de adopción: la solución debe ser asequible para una PYME. |
+| Centralizar ventas, mensajería y facturación en una sola plataforma. | Curva de aprendizaje: no tienen equipo técnico dedicado. |
+| Convertir interacciones en redes sociales en ventas registradas y facturadas. | Continuidad: el sistema no puede fallar en horas de venta. |
+| Obtener visibilidad sobre el estado comercial del negocio. | Cumplimiento fiscal sin complejidad adicional. |
+---
+ 
+## STK-02: Personal administrativo
+ 
+**Rol:** Empleados que operan el sistema día a día: emiten facturas, gestionan clientes y procesan cotizaciones.
+ 
+| Intereses principales | Preocupaciones o restricciones |
+|---|---|
+| Rapidez en la emisión de comprobantes electrónicos. | Interfaces complejas que ralenticen el trabajo. |
+| Reducción de errores por ingreso manual de datos. | Pérdida de datos por fallos del sistema. |
+| Flujos de trabajo claros y predecibles. | Doble digitación entre sistemas desconectados. |
+| Acceso a historial de transacciones por cliente. | Falta de soporte ante errores de facturación. |
+ 
+---
+ 
+## STK-03: Clientes finales
+ 
+**Rol:** Personas o empresas que compran productos/servicios de las PYMES y reciben los comprobantes electrónicos.
+ 
+| Intereses principales | Preocupaciones o restricciones |
+|---|---|
+| Respuestas rápidas a consultas realizadas por redes sociales. | Tiempos de espera excesivos en la atención automatizada. |
+| Recibir comprobantes electrónicos válidos de forma oportuna. | Recibir comprobantes con errores o inválidos ante Hacienda. |
+| Transparencia en precios y condiciones de venta. | Privacidad de sus datos personales y fiscales. |
+ 
+---
+ 
+## STK-04: Administradores del sistema
+ 
+**Rol:** Personal técnico o funcional responsable de configurar, monitorear y mantener la plataforma en operación.
+ 
+| Intereses principales | Preocupaciones o restricciones |
+|---|---|
+| Control centralizado sobre configuración de tenants y usuarios. | Fallos silenciosos en integraciones con APIs externas. |
+| Monitoreo en tiempo real del estado de integraciones externas. | Escalabilidad ante crecimiento de clientes (multi-tenant). |
+| Capacidad de auditoría sobre todas las transacciones. | Gestión de certificados de firma digital y su renovación. |
+| Herramientas de diagnóstico ante fallos. | Seguridad: accesos no autorizados, exfiltración de datos fiscales. |
+ 
+---
+ 
+## STK-05: Entidades tributarias (Ministerio de Hacienda)
+ 
+**Rol:** Ente regulador que define los requisitos legales y técnicos para la facturación electrónica en Costa Rica.
+ 
+| Intereses principales | Preocupaciones o restricciones |
+|---|---|
+| Que los comprobantes emitidos cumplan el esquema XML vigente. | Emisión de comprobantes fraudulentos o manipulados. |
+| Que los documentos tengan firma digital válida (XADES-EPES). | Incumplimiento del formato o protocolo de comunicación. |
+| Que exista trazabilidad fiscal completa y auditable. | Imposibilidad de fiscalizar por falta de registros. |
+| Que los comprobantes se conserven por el plazo legal (5 años). | |
+ 
+---
+ 
+## STK-06: Equipo de desarrollo
+ 
+**Rol:** Desarrolladores e ingenieros responsables de construir, evolucionar y mantener la plataforma.
+ 
+| Intereses principales | Preocupaciones o restricciones |
+|---|---|
+| Arquitectura clara con subsistemas desacoplados. | Deuda técnica acumulada por decisiones apresuradas. |
+| Stack tecnológico accesible y bien documentado. | Complejidad excesiva al integrar múltiples APIs externas. |
+| Facilidad para agregar nuevas integraciones o adaptar las existentes. | Dependencia de herramientas cuya viabilidad a largo plazo es incierta (ej. decisión pendiente sobre n8n). |
+| Procesos de despliegue y pruebas automatizados. | Mantenimiento de compatibilidad ante cambios de Hacienda o de redes sociales. |
+ 
+---
+ 
+## STK-07: Proveedores de APIs externas (Meta, TikTok)
+ 
+**Rol:** Plataformas de redes sociales cuyos servicios se integran al sistema mediante APIs públicas.
+ 
+| Intereses principales | Preocupaciones o restricciones |
+|---|---|
+| Que el consumo de sus APIs respete los términos de servicio. | Uso indebido de datos de usuarios obtenidos a través de sus APIs. |
+| Que los flujos OAuth cumplan sus especificaciones de seguridad. | Abuso de cuotas de API o scraping no autorizado. |
+| Que el volumen de llamadas se mantenga dentro de los rate limits. | Impacto reputacional si la integración genera spam o mala experiencia al usuario final. |
+ 
+---
+ 
+## Tabla resumen
+ 
+| ID | Stakeholder | Tipo | Influencia | Drivers asociados |
+|---|---|---|---|---|
+| STK-01 | Dueños de PYMES | Usuario / Negocio | **Alta** | RF-01, RF-02, RF-03, QA-02, REST-03 |
+| STK-02 | Personal administrativo | Usuario operativo | **Media** | RF-03, RF-04, QA-04 |
+| STK-03 | Clientes finales | Usuario externo | **Baja** | RF-02, QA-02, QA-04 |
+| STK-04 | Administradores del sistema | Operador / Técnico | **Alta** | RF-04, RF-05, QA-01, QA-03, QA-05, REST-05 |
+| STK-05 | Entidades tributarias | Regulador | **Alta** | RF-01, RF-05, QA-01, REST-01, REST-02 |
+| STK-06 | Equipo de desarrollo | Constructor | **Alta** | QA-03, QA-05, REST-05, REST-06 |
+| STK-07 | Proveedores APIs (Meta, TikTok) | Proveedor externo | **Media** | RF-02, QA-03, REST-04 |
 ## 3. Drivers Arquitectónicos
 
 Plataforma de Facturación Electrónica Inteligente con Automatización Comercial y Redes Sociales
