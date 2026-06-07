@@ -194,34 +194,54 @@ El sistema no implementa una tienda virtual pública, marketplace o carrito de c
 
 ---
 
-## 3. Drivers arquitectónicos
+## 3. Drivers Arquitectónicos
 
-> **Instrucciones:** Los drivers son los factores que más van a moldear la arquitectura. No son todos los requerimientos — son los que, si los ignorás, el sistema falla o el diseño queda fundamentalmente equivocado. Clasificalos en las tres categorías siguientes. Para cada driver, indicá el stakeholder que lo origina (referencia a la sección 2) y el atributo de calidad que afecta.
+Plataforma de Facturación Electrónica Inteligente con Automatización Comercial y Redes Sociales
+
+Los drivers arquitectónicos son los factores que moldean de forma determinante la arquitectura del sistema. No representan la totalidad de requerimientos, sino aquellos cuya omisión provocaría un fallo sistémico o un diseño fundamentalmente inadecuado (SWEBOK v3, Cap. 2 -- Software Design). A continuación se clasifican en tres categorías: requerimientos funcionales clave, atributos de calidad prioritarios y restricciones que actúan como drivers.
 
 ### 3.1 Requerimientos funcionales clave
-> Solo los que tienen impacto arquitectónico directo — los que obligan a tomar decisiones de estructura, no de implementación.
 
-| ID | Requerimiento | Stakeholder | Por qué es un driver |
+Se incluyen únicamente los requerimientos funcionales con impacto arquitectónico directo: aquellos que obligan a tomar decisiones de estructura, componentes o integración, no de implementación interna.
+
+| **ID** | **Requerimiento** | **Stakeholder** | **Por qué es un driver** |
 |---|---|---|---|
-| RF-01 | [Descripción] | [Ref. sección 2] | [Impacto en la arquitectura] |
-| RF-02 | | | |
+| **RF-01** | Emisión de comprobantes electrónicos (factura, nota de crédito, nota de débito) cumpliendo el esquema XML del Ministerio de Hacienda de Costa Rica. | Dueños de PYMES, Entidades tributarias | Define el subsistema central del dominio. Obliga a un motor de facturación con generación XML, firma digital, envío al API de Hacienda y manejo de estados (aceptado/rechazado). Impone estructura de colas y reintentos. |
+| **RF-02** | Integración bidireccional con APIs de redes sociales (Meta Platforms, TikTok) para capturar mensajes, consultas y convertirlos en oportunidades de venta. | Dueños de PYMES, Clientes finales | Introduce un subsistema de integración social con sus propias fronteras, protocolos de autenticación OAuth y manejo de webhooks. Requiere un bus de eventos o intermediario para desacoplar la mensajería social del core de facturación. |
+| **RF-03** | Orquestación de flujos automatizados (cotización automática, respuesta a consultas, conversión de conversación a factura) mediante motor de workflows. | Dueños de PYMES, Personal administrativo | Obliga a incorporar un motor de automatización como componente arquitectónico separado. Define la necesidad de una capa de orquestación con triggers, acciones y conectores, además del patrón de comunicación con el rest del sistema. |
+| **RF-04** | Gestión multiusuario con roles diferenciados (administrador, vendedor, auditor) y permisos granulares por operación. | Administradores del sistema, Personal administrativo | Obliga a un subsistema transversal de autenticación y autorización (Identity Provider). Afecta cada punto de entrada del sistema y requiere decisiones sobre protocolos (JWT, OAuth2) y almacenamiento de sesiones. |
+| **RF-05** | Registro de auditoría completo e inmutable de todas las transacciones fiscales y acciones de usuarios. | Entidades tributarias, Administradores del sistema | Impone un log de auditoría append-only separado del almacenamiento transaccional. Afecta la estrategia de persistencia y puede requerir un almacén de eventos o base de datos dedicada para trazabilidad fiscal. |
 
 ### 3.2 Atributos de calidad prioritarios
-> Los más importantes para este sistema. Justificá por qué estos y no otros. Máximo 5 — si todo es prioridad, nada lo es.
 
-| ID | Atributo | Importancia | Stakeholder | Justificación |
+Se priorizan los cinco atributos de calidad más críticos para este sistema. La selección responde al contexto específico del dominio: un sistema fiscal con integración a servicios externos y automatización en tiempo real. Si todo es prioridad, nada lo es — por eso se limita a cinco.
+
+| **ID** | **Atributo** | **Importancia** | **Stakeholder** | **Justificación** |
 |---|---|---|---|---|
-| QA-01 | [Rendimiento / Disponibilidad / Seguridad / etc.] | Alta / Media | [Ref.] | [Por qué este atributo es crítico para este sistema] |
-| QA-02 | | | | |
+| **QA-01** | Seguridad | **Alta** | Entidades tributarias, Administradores | El sistema maneja información fiscal legalmente vinculante y datos sensibles de clientes (NIF, direcciones, montos). Una brecha comprometería la validez legal de los comprobantes y expondría a sanciones. Requiere firma digital, cifrado en tránsito/reposo y control de acceso estricto. |
+| **QA-02** | Disponibilidad | **Alta** | Dueños de PYMES, Clientes finales | Las PYMES dependen del sistema para facturar en tiempo real. Una caída durante horas pico significa pérdida directa de ventas. La integración con redes sociales exige que el sistema esté disponible cuando llegan mensajes (24/7). Objetivo mínimo: 99.5% uptime mensual. |
+| **QA-03** | Interoperabilidad | **Alta** | Dueños de PYMES, Administradores | El sistema debe comunicarse con al menos tres ecosistemas externos: API de Hacienda (XML/SOAP), APIs de redes sociales (REST/webhooks) y motor de automatización. Si la interoperabilidad falla, el valor diferenciador de la plataforma desaparece. |
+| **QA-04** | Rendimiento | **Media-Alta** | Personal administrativo, Clientes finales | Las respuestas automáticas a consultas en redes sociales deben procesarse en segundos para no perder oportunidades comerciales. La emisión de facturas debe completarse en menos de 5 segundos incluyendo la respuesta de Hacienda. Tiempos mayores degradan la experiencia y generan doble envío. |
+| **QA-05** | Modificabilidad | **Media** | Administradores, Dueños de PYMES | Las regulaciones fiscales cambian periódicamente (nuevos campos, versiones de XML, tarifas impositivas). Las APIs de redes sociales actualizan sus contratos con frecuencia. El sistema debe absorber estos cambios sin rediseño arquitectónico, lo que exige bajo acoplamiento entre subsistemas. |
 
 ### 3.3 Restricciones que actúan como drivers
-> Restricciones que no son negociables y obligan a decisiones arquitectónicas específicas.
 
-| ID | Restricción | Tipo | Impacto en el diseño |
+Las siguientes restricciones no son negociables y condicionan directamente las decisiones arquitectónicas. Se clasifican por tipo según su origen.
+
+| **ID** | **Restricción** | **Tipo** | **Impacto en el diseño** |
 |---|---|---|---|
-| REST-01 | [Descripción] | Técnica / Negocio / Regulatoria | [Cómo condiciona las decisiones] |
-| REST-02 | | | |
+| **REST-01** | Los comprobantes electrónicos deben cumplir el formato XML y el protocolo de firma digital establecidos por el Ministerio de Hacienda de Costa Rica. | Regulatoria | Fuerza el uso de librerías de firma digital (XADES-EPES), certificados específicos (Firma Digital CR) y un módulo dedicado a construir y validar el XML fiscal. No hay margen de negociación sobre el formato. |
+| **REST-02** | Los documentos fiscales emitidos deben conservarse por un mínimo de 5 años con integridad demostrable. | Regulatoria | Obliga a una estrategia de almacenamiento de largo plazo con respaldos, checksums de integridad y posible almacenamiento en frío. Afecta la selección de base de datos y la política de retención. |
+| **REST-03** | La plataforma debe operar como servicio multi-tenant orientado a PYMES con modelo de suscripción (SaaS). | Negocio | Impone aislamiento de datos entre tenants, gestión de suscripciones/licencias y una arquitectura que permita escalar por número de clientes. Condiciona el modelo de datos (tenant_id en cada tabla o esquemas separados). |
+| **REST-04** | El sistema debe integrarse con APIs externas de Meta Platforms y TikTok, sujetas a sus términos de servicio, procesos de aprobación y límites de tasa. | Técnica | Las APIs de terceros imponen rate limiting, flujos OAuth específicos y revisiones de app. Obliga a implementar circuit breakers, colas de reintento, almacenamiento local de tokens y manejo de degradación cuando las APIs no están disponibles. |
+| **REST-05** | El motor de automatización es un componente arquitectónico a definir; n8n es candidato pero la decisión está pendiente del análisis arquitectónico. | Técnica | La arquitectura debe diseñarse con una interfaz abstracta para el motor de workflows, de modo que la selección final (n8n, Temporal, solución propia) no impacte los demás subsistemas. Obliga a definir contratos claros (API/eventos) entre la orquestación y el resto del sistema. |
+| **REST-06** | El presupuesto y equipo corresponden a un proyecto académico/startup con recursos limitados. | Negocio | Restringe el uso de servicios cloud costosos, licencias comerciales y tecnologías que requieran expertise especializado escaso. Favorece stack open-source, servicios gestionados con capa gratuita y arquitectura que pueda operarse con un equipo pequeño. |
 
+---
+
+> **Nota metodológica:** *Esta clasificación sigue los lineamientos del SWEBOK v3 (Capítulo 2 -- Software Design), que establece que los drivers arquitectónicos comprenden los requerimientos funcionales significativos, los atributos de calidad que el sistema debe satisfacer y las restricciones del entorno de desarrollo y operación. Los stakeholders referenciados corresponden a la sección 2 del documento de arquitectura.*
+
+> **Nota sobre n8n:** *Dado que la selección del motor de automatización está sujeta al análisis arquitectónico, REST-05 refleja esta incertidumbre como restricción técnica. La arquitectura debe diseñarse de forma que el componente de orquestación sea intercambiable, independientemente de si la decisión final es n8n, otra herramienta, o un desarrollo propio.*
 ---
 
 # BLOQUE 2 — REQUERIMIENTOS DE CALIDAD
