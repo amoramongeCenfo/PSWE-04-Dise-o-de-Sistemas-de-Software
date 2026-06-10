@@ -12,7 +12,7 @@
 | **URL del repositorio** | https://github.com/amoramongeCenfo/PSWE-04-Dise-o-de-Sistemas-de-Software/tree/main |
 | **Docente** | Juan Mauricio Leandro Jiménez |
 | **Cuatrimestre** | 2026 — 02 |
-| **Versión del documento** | 0.1 — Propuesta inicial |
+| **Versión del documento** | 0.2 — Avance 1 (en curso) |
 | **Fecha de última actualización** | 2026-06-09 |
 
 ---

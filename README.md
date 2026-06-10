@@ -16,7 +16,7 @@ Plataforma de facturación electrónica inteligente para PYMES que venden por re
 | **Integrantes** | Edgar Jacob (117660514), Brandon Garita (207180701), Alejandro Mora (111890536) |
 | **Docente** | Juan Mauricio Leandro Jiménez |
 | **Cuatrimestre** | 2026 — 02 |
-| **Hito actual** | Propuesta (S03) — versión 0.1 |
+| **Hito actual** | Avance 1 (S07) — versión 0.2 |
 
 ---
 
@@ -25,7 +25,8 @@ Plataforma de facturación electrónica inteligente para PYMES que venden por re
 | Rama | Propósito |
 |---|---|
 | `main` | Rama estable. Contiene las versiones entregadas en cada hito. |
-| `dev` | Rama de trabajo. Se integran aquí los cambios antes de promoverlos a `main`. |
+| `develop` | Rama de integración. Se consolidan aquí los cambios antes de promoverlos a `main`. |
+| `feature/*` | Ramas de trabajo por hito o tarea (p. ej. `feature/avance1`). Se integran a `develop` mediante PR. |
 
 ---
 
@@ -54,7 +55,7 @@ Plataforma de facturación electrónica inteligente para PYMES que venden por re
 
 | Hito | Semana | Estado |
 |---|---|---|
-| Propuesta | S03 | En curso |
-| Avance 1 | S07 | Pendiente |
+| Propuesta | S03 | Completado |
+| Avance 1 | S07 | En curso |
 | Avance 2 | S11 | Pendiente |
 | Entrega final | S14 | Pendiente |
