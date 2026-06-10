@@ -63,7 +63,7 @@
 ## 1. Descripción del sistema y alcance
 
 ### 1.1 Descripción general
-El sistema propuesto consiste en una plataforma de facturación electrónica inteligente orientada a pequeñas y medianas empresas (PYMES) que comercializan productos y servicios mediante redes sociales y canales digitales. Su propósito principal es centralizar y simplificar la gestión comercial y administrativa de negocios que actualmente manejan sus ventas de forma manual, utilizando múltiples herramientas desconectadas entre sí. La plataforma permitirá administrar clientes, registrar ventas y gestionar comprobantes electrónicos, brindando trazabilidad y control sobre el proceso comercial.
+El sistema propuesto, **SmartBilling Connect**, consiste en una plataforma de facturación electrónica inteligente orientada a pequeñas y medianas empresas (PYMES) que comercializan productos y servicios mediante redes sociales y canales digitales. Su propósito principal es centralizar y simplificar la gestión comercial y administrativa de negocios que actualmente manejan sus ventas de forma manual, utilizando múltiples herramientas desconectadas entre sí. La plataforma permitirá administrar clientes, registrar ventas y gestionar comprobantes electrónicos, brindando trazabilidad y control sobre el proceso comercial.
 
 Actualmente, muchas PYMES utilizan redes sociales como principal canal de ventas, especialmente plataformas de mensajería y comercio digital. Sin embargo, estos negocios enfrentan problemas relacionados con la duplicidad de información, pérdida de seguimiento de clientes, errores en la generación de facturas y procesos operativos poco eficientes. En muchos casos, las conversaciones con clientes ocurren en redes sociales mientras la facturación se realiza manualmente en otros sistemas, generando retrasos, inconsistencias y una alta dependencia de tareas repetitivas realizadas por el personal administrativo.
 
@@ -81,6 +81,8 @@ El sistema también se relaciona con procesos comerciales y de atención al clie
 Desde una perspectiva arquitectónica, el dominio presenta retos relevantes relacionados con integración de sistemas externos, manejo seguro de información fiscal, tolerancia a fallos en procesos de facturación y coordinación de eventos provenientes de múltiples canales digitales. También existe una tensión importante entre rapidez de respuesta en la atención comercial y consistencia de la información transaccional, especialmente cuando varios usuarios o integraciones interactúan simultáneamente con los mismos datos comerciales y fiscales.
 
 ### 1.3 Alcance del sistema
+
+**Dentro del alcance**
 
 #### 1.3.1 Gestión de usuarios y acceso
 
@@ -124,51 +126,52 @@ El sistema permite enviar comprobantes electrónicos y notificaciones a clientes
 
 
 **Fuera del alcance**
-#### 1.3.13 ERP financiero y contabilidad avanzada
+
+#### 1.3.11 ERP financiero y contabilidad avanzada
 
 El sistema no implementa funcionalidades completas de ERP financiero o contable, como contabilidad general, conciliaciones bancarias, cuentas por pagar o generación de estados financieros.
 
-#### 1.3.14 Gestión avanzada de inventarios
+#### 1.3.12 Gestión avanzada de inventarios
 
 El sistema no administra procesos avanzados de inventario, tales como manejo multi-bodega, trazabilidad física, logística de distribución o planificación de abastecimiento.
 
-#### 1.3.15 Procesamiento directo de pagos
+#### 1.3.13 Procesamiento directo de pagos
 
 El sistema no procesa pagos electrónicos directamente ni funciona como pasarela de pago financiera. Las transacciones monetarias dependerán de servicios externos especializados.
 
-#### 1.3.16 CRM empresarial avanzado
+#### 1.3.14 CRM empresarial avanzado
 
 El sistema no reemplaza plataformas completas de CRM empresarial; únicamente administra información comercial relacionada con ventas, clientes y facturación.
 
-#### 1.3.17 Marketing digital y publicidad
+#### 1.3.15 Marketing digital y publicidad
 
 El sistema no realiza campañas de marketing digital, segmentación publicitaria ni administración de anuncios pagados en redes sociales.
 
-#### 1.3.18 Almacenamiento completo de conversaciones
+#### 1.3.16 Almacenamiento completo de conversaciones
 
 El sistema no almacena conversaciones completas provenientes de redes sociales de forma indefinida, excepto la información necesaria para trazabilidad comercial y automatización de procesos.
 
-#### 1.3.19 Gestión de recursos humanos
+#### 1.3.17 Gestión de recursos humanos
 
 El sistema no incluye funcionalidades relacionadas con nómina, control de personal, recursos humanos o administración de empleados.
 
-#### 1.3.20 Inteligencia artificial conversacional avanzada
+#### 1.3.18 Inteligencia artificial conversacional avanzada
 
 El sistema no implementa asistentes inteligentes avanzados ni reemplaza completamente la atención humana al cliente; únicamente soporta automatizaciones configuradas.
 
-#### 1.3.21 Disponibilidad de servicios externos
+#### 1.3.19 Disponibilidad de servicios externos
 
 El sistema no garantiza disponibilidad continua de APIs externas, plataformas tributarias, servicios de redes sociales o herramientas de automatización integradas.
 
-#### 1.3.22 Soporte multinacional
+#### 1.3.20 Soporte multinacional
 
 El sistema no contempla inicialmente adaptación automática a regulaciones fiscales de múltiples países; el alcance se limita al contexto tributario costarricense.
 
-#### 1.3.23 Business Intelligence avanzado
+#### 1.3.21 Business Intelligence avanzado
 
 El sistema no incluye funcionalidades avanzadas de analítica empresarial, minería de datos o procesamiento masivo orientado a Business Intelligence.
 
-#### 1.3.24 Plataforma completa de comercio electrónico
+#### 1.3.22 Plataforma completa de comercio electrónico
 
 El sistema no implementa una tienda virtual pública, marketplace o carrito de compras completo para comercio electrónico.
 
@@ -179,7 +182,7 @@ El sistema no implementa una tienda virtual pública, marketplace o carrito de c
 | Vendedor / Ejecutivo comercial | Registrar clientes, generar cotizaciones, convertir cotizaciones en facturas electrónicas, consultar historial comercial, gestionar seguimiento de ventas provenientes de redes sociales |
 | Asistente administrativo | Emitir facturas electrónicas, validar información fiscal de clientes, reenviar comprobantes electrónicos, consultar estados tributarios, corregir errores operativos de facturación |
 | Cliente final | Recibir comprobantes electrónicos, consultar cotizaciones enviadas, confirmar pedidos o servicios, recibir notificaciones comerciales, interactuar mediante canales digitales |
-| Plataforma de automatización (n8n) | Ejecutar flujos automáticos, recibir eventos comerciales, disparar procesos de facturación, sincronizar información entre sistemas, generar notificaciones automáticas |
+| Plataforma de automatización (p. ej. n8n) | Ejecutar flujos automáticos, recibir eventos comerciales, disparar procesos de facturación, sincronizar información entre sistemas, generar notificaciones automáticas |
 | Servicios externos tributarios | Validar comprobantes electrónicos, recibir documentos fiscales, retornar estados de aceptación o rechazo, verificar cumplimiento tributario |
 
 
