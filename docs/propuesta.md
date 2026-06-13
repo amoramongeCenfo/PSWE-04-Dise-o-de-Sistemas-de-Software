@@ -22,7 +22,7 @@
 | Versión | Fecha | Hito | Cambios principales | Autor(es) |
 |---|---|---|---|---|
 | 0.1 | 2026-05-23 | Propuesta (S03) | Creación del documento inicial | Edgar Jacob, Brandon Garita, Alejandro Mora |
-| 0.2 | [fecha] | Avance 1 (S07) | [descripción] | [nombres] |
+| 0.2 | 2026-06-12 | Avance 1 (S07) | Descripción del sistema, alcance, stakeholders, drivers arquitectónicos, escenarios de calidad y Vista de Contexto C4 | Edgar Jacob, Brandon Garita, Alejandro Mora |
 | 0.3 | [fecha] | Avance 2 (S11) | [descripción] | [nombres] |
 | 1.0 | [fecha] | Entrega final (S14) | Documento completo | [nombres] |
 
@@ -346,79 +346,108 @@ Las siguientes restricciones no son negociables y condicionan directamente las d
 ---
 
 # BLOQUE 2 — REQUERIMIENTOS DE CALIDAD
-*Hito: Avance 1 (S07)*
 
----
 
 ## 4. Requerimientos de calidad — Escenarios 
-
-> **Instrucciones:** Un escenario de calidad es una descripción concreta y medible de cómo el sistema debe responder ante un estímulo específico. No son deseos generales ("el sistema debe ser rápido") — son compromisos verificables. Usá el formato ISO/IEEE de 6 elementos. Se requieren **mínimo 4 escenarios**, cubriendo al menos 3 atributos de calidad distintos. Asegurate de que algunos atributos entren en tensión entre sí — eso evidencia decisiones arquitectónicas reales.
->
-> **Formato de los 6 elementos:**
-> - **Fuente del estímulo:** quién o qué genera el evento (usuario, sistema externo, atacante, tiempo, operador)
-> - **Estímulo:** el evento concreto que ocurre
-> - **Entorno:** las condiciones en que ocurre (carga normal, peak, falla de red, etc.)
-> - **Artefacto:** qué parte del sistema recibe el estímulo
-> - **Respuesta:** qué hace el sistema ante ese estímulo
-> - **Medida de respuesta:** cómo sabemos que la respuesta es aceptable (número concreto, no "rápido" o "disponible")
-
-
-
-### Escenario QS-01 — [Nombre del atributo: ej. Rendimiento]
-
+ 
+Definir atributos de calidad en abstracto no es suficiente para tomar decisiones arquitectónicas. Un enunciado como "el sistema debe ser seguro y rápido" no le dice nada al equipo de diseño: no indica cuándo ocurre el problema, qué parte del sistema lo enfrenta ni cómo se mide el éxito. Los escenarios de calidad resuelven eso: convierten cada atributo en una situación concreta, con un actor real, una condición medible y una respuesta esperada del sistema.
+ 
+Cada escenario en esta sección sigue la estructura de seis elementos definida en la norma ISO/IEEE: fuente del estímulo, estímulo, entorno de operación, artefacto afectado, respuesta esperada del sistema y medida de respuesta. Las medidas son siempre numéricas; expresiones como "rápido" o "disponible" no califican como criterios de aceptación en un diseño arquitectónico serio.
+ 
+Se documentan cinco escenarios que cubren cuatro atributos de calidad distintos: seguridad, disponibilidad, rendimiento y modificabilidad. Estos atributos fueron priorizados en la sección 3.2 como los más críticos para el dominio de SmartBilling Connect. Al cierre de la sección se analizan las tensiones entre escenarios que entran en conflicto, porque es precisamente en esos conflictos donde se toman las decisiones arquitectónicas más importantes.
+ 
+---
+ 
+### QS-01 — Seguridad: Acceso no autorizado a datos fiscales de un tenant
+ 
+En una plataforma multi-tenant, el riesgo más serio no siempre viene de afuera: un usuario legítimo de un tenant podría intentar —por error o con intención— acceder a los datos de otro. Este escenario valida que el aislamiento entre tenants es real y que cualquier intento de cruzar esa frontera queda registrado.
+ 
 | Elemento | Descripción |
 |---|---|
-| **Fuente del estímulo** | [ej. 500 usuarios concurrentes] |
-| **Estímulo** | [ej. Consultan el dashboard principal simultáneamente] |
-| **Entorno** | [ej. Operación normal en horario pico, lunes 8am] |
-| **Artefacto** | [ej. Servicio de reportes y base de datos analítica] |
-| **Respuesta** | [ej. El sistema retorna el dashboard con datos actualizados] |
-| **Medida de respuesta** | [ej. Tiempo de respuesta ≤ 2 segundos en el percentil 95] |
+| **Fuente** | Actor externo no autenticado, o usuario autenticado perteneciente a un tenant diferente al del recurso solicitado. |
+| **Estímulo** | Intento de consultar, modificar o exportar comprobantes electrónicos o datos fiscales de un tenant ajeno, ya sea mediante llamadas directas a la API REST o mediante manipulación de parámetros de sesión. |
+| **Entorno** | Sistema en operación normal, con múltiples tenants activos simultáneamente. |
+| **Artefacto** | Subsistema de autenticación y autorización (Identity Provider) y capa de acceso a datos con filtros por `tenant_id`. |
+| **Respuesta** | El sistema rechaza la solicitud con HTTP 403, registra el intento en el log de auditoría inmutable con timestamp, IP de origen, usuario y recurso solicitado, y no devuelve ningún dato del tenant objetivo. |
+| **Medida de respuesta** | Cero registros de tenants ajenos expuestos por solicitud no autorizada. Evento de intento registrado en auditoría en ≤ 500 ms. Tasa de falsos negativos (accesos indebidos no detectados) igual a cero en pruebas de penetración internas sobre el modelo de control RBAC. |
+ 
+ > **Tensión con ESC-04 — Seguridad vs. Rendimiento:** El registro de auditoría que exige ESC-01 por cada intento de acceso no autorizado comparte la misma infraestructura de log append-only que ESC-04 utiliza para trazabilidad fiscal. Si ese log se convierte en un cuello de botella bajo carga alta, ambos escenarios se ven afectados. La decisión de diseño implicada es la misma que se detalla en ESC-04: escritura asíncrona con garantía de entrega mediante patrón outbox o cola durable.
 
-*Tensión con:* [indicar si este escenario entra en conflicto con otro — ej. "tensiona con QS-03 (Consistencia) porque el caché que permite la velocidad puede servir datos desactualizados"]
+
+---
+ 
+### QS-02 — Disponibilidad: Fallo del servicio de validación de Hacienda
+ 
+La plataforma depende de una API externa para validar los comprobantes electrónicos. Esa dependencia es inevitable por regulación, pero no puede significar que el negocio se detenga cada vez que Hacienda tenga problemas técnicos. Este escenario define cómo debe comportarse el sistema cuando ese servicio externo falla, especialmente durante las horas de mayor actividad comercial.
+ 
+| Elemento | Descripción |
+|---|---|
+| **Fuente** | API del Ministerio de Hacienda de Costa Rica (servicio externo fuera del control de la plataforma). |
+| **Estímulo** | El endpoint de validación de comprobantes electrónicos retorna timeout o error HTTP 5xx de forma sostenida durante un período de indisponibilidad. |
+| **Entorno** | Sistema en operación durante hora pico de facturación, entre las 8:00 a.m. y las 6:00 p.m. hora Costa Rica. |
+| **Artefacto** | Módulo de facturación electrónica y la cola de reintentos asociada para persistencia temporal de documentos pendientes. |
+| **Respuesta** | El sistema acepta el comprobante generado localmente, lo encola para reenvío automático, comunica al usuario el estado "pendiente de validación fiscal" y continúa operando con normalidad para todas las demás funciones. Cuando la conectividad se restaura, procesa la cola en orden FIFO sin intervención manual. |
+| **Medida de respuesta** | Tiempo de degradación perceptible para el usuario ≤ 2 segundos (únicamente cambia el estado visible del comprobante). Documentos encolados procesados automáticamente en ≤ 10 minutos tras la restauración del servicio externo. Disponibilidad del flujo de facturación local, sin depender de Hacienda, ≥ 99.5 % mensual. Cero pérdidas de documentos encolados ante reinicios del sistema. |
+ 
+ > **Tensión con ESC-04 — Disponibilidad vs. Integridad fiscal:** ESC-02 requiere que el sistema persista comprobantes localmente cuando Hacienda no responde. Pero ESC-04 exige que cada comprobante tenga su entrada de auditoría con un estado definitivo. Durante una ventana de indisponibilidad, el estado real del comprobante ante Hacienda es desconocido, lo que crea una inconsistencia temporal entre el log interno y el registro fiscal oficial. La decisión de diseño implicada es modelar `pendiente_validacion_hacienda` como un estado fiscal legítimo y auditable: el log captura el timestamp de encolado y el de confirmación posterior, de modo que la integridad del proceso queda trazada aunque la validación no sea inmediata.
+
+
+---
+ 
+### QS-03 — Rendimiento: Respuesta automática a consulta en red social durante evento de ventas
+ 
+Uno de los valores diferenciales de SmartBilling Connect es responder automáticamente a mensajes de clientes en redes sociales. Pero ese valor desaparece si la respuesta llega tarde: en ventas por canal digital, unos pocos segundos de demora pueden ser la diferencia entre cerrar una venta o perderla. Este escenario evalúa el comportamiento del sistema bajo la carga concentrada típica de una campaña activa.
+ 
+| Elemento | Descripción |
+|---|---|
+| **Fuente** | Cliente final que envía un mensaje de consulta de precio o disponibilidad mediante Instagram Direct o WhatsApp Business, recibido vía webhook de Meta Platforms. |
+| **Estímulo** | Llegada simultánea de 50 eventos webhook en un intervalo de 60 segundos durante una campaña de ventas activa. |
+| **Entorno** | Sistema bajo carga sostenida, con el motor de automatización procesando flujos concurrentes. |
+| **Artefacto** | Subsistema de integración social, bus de eventos, motor de automatización y módulo de gestión de clientes. |
+| **Respuesta** | El sistema procesa cada evento, identifica si el cliente ya existe en el CRM, genera la respuesta automática configurada y la envía por el canal de origen, sin requerir intervención humana en ningún paso. |
+| **Medida de respuesta** | Tiempo de respuesta extremo a extremo —desde la recepción del webhook hasta el envío de la respuesta al cliente— ≤ 4 segundos en el percentil 95 bajo la carga descrita. Throughput mínimo sostenido de 50 eventos por minuto sin degradación. Tasa de mensajes no procesados por timeout del motor inferior al 1 % del total recibido. |
+ 
+ > **Tensión con ESC-01 y ESC-04 — Rendimiento vs. Seguridad:** El log de auditoría append-only exigido por ESC-01 y ESC-04 introduce una escritura obligatoria en cada operación sensible. Si esa escritura es síncrona y bloqueante dentro del camino crítico del procesamiento de webhooks, la latencia acumulada puede superar fácilmente los 4 segundos bajo carga sostenida. La decisión de diseño implicada es implementar el log como escritura asíncrona con garantía de entrega (patrón outbox o cola durable). La exigencia de registro previo a retornar respuesta aplica estrictamente a operaciones fiscales; para eventos comerciales de redes sociales es aceptable un modelo "at-least-once" con verificación post-proceso.
+
+
+---
+ 
+### QS-04 — Seguridad / Trazabilidad: Registro de auditoría ante emisión masiva de comprobantes
+ 
+La facturación electrónica tiene implicaciones legales directas. Cuando un proceso automatizado emite cientos de facturas en un lote, debe existir evidencia verificable de cada operación: quién la originó, cuándo ocurrió, cuál fue el resultado y que el documento no fue alterado después. Este escenario es especialmente relevante porque el actor que dispara el proceso no es un humano sino la plataforma de automatización.
+ 
+| Elemento | Descripción |
+|---|---|
+| **Fuente** | Plataforma de automatización (n8n u otro motor de workflows) actuando como actor no humano mediante un flujo programado. |
+| **Estímulo** | Emisión de 200 facturas electrónicas en lote durante un cierre de mes. |
+| **Entorno** | Operación normal en sistema multi-tenant, con varios tenants procesando transacciones simultáneamente. |
+| **Artefacto** | Log de auditoría append-only y subsistema de facturación electrónica. |
+| **Respuesta** | Por cada comprobante emitido, el sistema registra en el log de auditoría la identidad del actor (usuario o integración), el tenant de origen, un timestamp con precisión de milisegundo, el número de comprobante, el estado resultante (aceptado, rechazado o pendiente) y el hash de integridad del documento XML. Ningún actor del sistema —incluyendo administradores— puede modificar ni eliminar entradas del log una vez escritas. |
+| **Medida de respuesta** | El 100 % de los comprobantes emitidos tiene su entrada correspondiente en el log antes de que el sistema retorne la respuesta al cliente. La latencia adicional que introduce el registro de auditoría es ≤ 80 ms por comprobante. La integridad del log es verificable mediante hashes encadenados: ninguna entrada puede ser alterada sin invalidar todas las posteriores. El log se conserva por un mínimo de 5 años, en cumplimiento de la restricción REST-02. |
+ 
+ > **Tensión con ESC-05 — Trazabilidad vs. Modificabilidad:** El despliegue en caliente requerido por ESC-05 implica que durante la ventana de transición pueden coexistir en producción dos versiones del módulo fiscal. El log de auditoría debe mantener coherencia entre registros generados por versiones distintas del mismo módulo, y un token válido para una versión no debería poder operar contra la otra. La decisión de diseño implicada es que cada entrada del log incluya la versión del módulo fiscal que generó el comprobante, y que el subsistema de autorización aplique control de versión en los contratos de API internos.
+
+
+---
+ 
+### QS-05 — Modificabilidad: Adaptación a cambio en el esquema XML de Hacienda
+ 
+Las regulaciones fiscales no son estáticas. Hacienda actualiza periódicamente el esquema XML de los comprobantes electrónicos, y el sistema debe poder absorber esos cambios sin afectar a los tenants en producción ni requerir una intervención de emergencia del equipo. Este escenario verifica que el módulo fiscal está suficientemente aislado como para ser actualizado de forma independiente.
+ 
+| Elemento | Descripción |
+|---|---|
+| **Fuente** | Ministerio de Hacienda de Costa Rica en su rol de regulador externo. |
+| **Estímulo** | Publicación de una nueva versión del esquema XML para comprobantes electrónicos, con cambios en campos obligatorios y reglas de validación, y un plazo de adopción de 60 días calendario. |
+| **Entorno** | Sistema en producción con tenants activos emitiendo comprobantes a diario. |
+| **Artefacto** | Módulo de construcción y validación del XML fiscal, aislado del resto del sistema mediante una interfaz de contrato definida. |
+| **Respuesta** | El equipo de desarrollo modifica exclusivamente el módulo fiscal sin tocar otros subsistemas. El cambio atraviesa el pipeline de integración continua, se valida en el ambiente de pruebas y se despliega en producción sin downtime mediante un despliegue en caliente. |
+| **Medida de respuesta** | Tiempo total desde la publicación del nuevo esquema hasta el despliegue en producción validado: ≤ 10 días hábiles. Número de subsistemas ajenos al módulo fiscal que requieren modificación: cero. Cobertura de pruebas automatizadas del módulo fiscal antes del despliegue: ≥ 90 % de los casos de validación definidos por Hacienda. |
+ 
+ > **Tensión con ESC-01 y ESC-04 — Modificabilidad vs. Seguridad:** La coexistencia de dos versiones del módulo fiscal durante el despliegue amplía temporalmente la superficie de ataque del sistema. Esta tensión ya fue abordada desde la perspectiva de trazabilidad en ESC-04; desde la perspectiva de acceso, la decisión complementaria es que el subsistema de autorización emita tokens con alcance de versión explícito, de modo que una sesión autenticada solo pueda operar contra la versión del módulo para la que fue emitida.
+
 
 ---
 
-### Escenario QS-02 — [Nombre del atributo]
-
-| Elemento | Descripción |
-|---|---|
-| **Fuente del estímulo** | |
-| **Estímulo** | |
-| **Entorno** | |
-| **Artefacto** | |
-| **Respuesta** | |
-| **Medida de respuesta** | |
-
-*Tensión con:* [o "Sin tensión identificada con otros escenarios"]
-
----
-
-### Escenario QS-03 — [Nombre del atributo]
-*(Repetir la tabla para cada escenario adicional)*
-| Elemento | Descripción |
-|---|---|
-| **Fuente del estímulo** | |
-| **Estímulo** | |
-| **Entorno** | |
-| **Artefacto** | |
-| **Respuesta** | |
-| **Medida de respuesta** | |
-
-*Tensión con:* [o "Sin tensión identificada con otros escenarios"]
-
-### Escenario QS-04 — [Nombre del atributo]
-
-| Elemento | Descripción |
-|---|---|
-| **Fuente del estímulo** | |
-| **Estímulo** | |
-| **Entorno** | |
-| **Artefacto** | |
-| **Respuesta** | |
-| **Medida de respuesta** | |
-
-*Tensión con:* [o "Sin tensión identificada con otros escenarios"]
 
 ## 5. Restricciones
 
@@ -463,14 +492,21 @@ Las siguientes restricciones no son negociables y condicionan directamente las d
 > **Instrucciones:** Incluí el diagrama (imagen exportada o código PlantUML/Mermaid en `/diagramas/c4-contexto.puml`). Debajo del diagrama, describí cada elemento: el sistema central, cada actor externo (persona o rol) y cada sistema externo, con una oración que explique la naturaleza de la relación.
 
 ![Vista de contexto](../diagramas/c4-contexto.png)
-*Figura 1 — Vista de contexto del sistema [Nombre]*
+*Figura 1 — Vista de contexto del sistema SmartBilling Connect*
 
 | Elemento | Tipo | Descripción de la relación |
 |---|---|---|
-| [Nombre del sistema] | Sistema principal | [Descripción breve] |
-| [Actor externo 1] | Persona / Rol | [Qué hace con el sistema y cómo] |
-| [Sistema externo 1] | Sistema externo | [Qué datos o servicios intercambia y con qué protocolo] |
-
+| **SmartBilling Connect** | Sistema principal | Plataforma SaaS de facturación electrónica inteligente para PYMES. Centraliza la gestión de clientes, cotizaciones, facturación electrónica y automatización de flujos comerciales provenientes de canales digitales. |
+| **Dueño de PYME** | Persona / Rol | Accede al sistema mediante la interfaz web para configurar parámetros fiscales y de integración, administrar usuarios y permisos, monitorear automatizaciones y consultar métricas operativas del negocio. Interacción: HTTPS / Web UI. |
+| **Vendedor / Ejecutivo** | Persona / Rol | Utiliza el sistema para registrar clientes, generar cotizaciones, convertir cotizaciones en facturas electrónicas y dar seguimiento a ventas originadas en redes sociales. Interacción: HTTPS / Web UI. |
+| **Asistente Administrativo** | Persona / Rol | Opera el sistema para emitir comprobantes electrónicos, validar información fiscal de clientes, reenviar documentos y corregir errores operativos de facturación. Interacción: HTTPS / Web UI. |
+| **Cliente Final** | Persona / Rol externo | Recibe comprobantes electrónicos y notificaciones comerciales, consulta cotizaciones enviadas y confirma pedidos. No accede al back-office del sistema. Interacción: correo electrónico / portal web. |
+| **API Ministerio de Hacienda CR** | Sistema externo | El sistema envía comprobantes electrónicos firmados digitalmente en formato XML y consulta su estado de validación (aceptado / rechazado / en proceso). Es el punto de cumplimiento tributario obligatorio para toda factura emitida. Interacción: XML sobre HTTPS. |
+| **Meta Platforms (Instagram / WhatsApp)** | Sistema externo | El sistema recibe mensajes e interacciones de clientes enviadas a través de Instagram Direct y WhatsApp Business mediante webhooks. A su vez, envía respuestas automáticas configuradas en los flujos de atención. Interacción: REST / Webhook. |
+| **TikTok Business API** | Sistema externo | El sistema recibe eventos de interacción generados en TikTok y los sincroniza como oportunidades de venta dentro de la plataforma. Interacción: REST / Webhook. |
+| **Motor de Automatización (n8n)** | Sistema externo | El sistema publica eventos de negocio que n8n consume para orquestar flujos automáticos. A su vez, n8n envía instrucciones de vuelta al sistema para disparar procesos como la emisión de facturas. Interacción: REST / Eventos. |
+| **Servicio de Correo Electrónico** | Sistema externo | El sistema delega en este servicio el envío de comprobantes electrónicos, cotizaciones y notificaciones a los clientes finales. Interacción: SMTP / API. |
+ 
 ---
 
 ### 7.2 Vista de estructura interna
