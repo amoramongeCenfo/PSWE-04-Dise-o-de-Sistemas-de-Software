@@ -598,6 +598,9 @@ El grupo se compromete a respetar los siguientes principios durante todo el dise
  
 #### 7.1.1 Fronteras de confianza
 
+![Vista de Fronteras de Confianza](../diagramas/c4-contexto-confianza.png)
+*Figura 2 — Vista de contexto del sistema SmartBilling Connect*
+
 No todos los actores y sistemas externos tienen el mismo nivel de confianza, y esa distinción —no solo el diagrama— guía decisiones de seguridad, validación e idempotencia. Se clasifican así:
 
 | Nivel de confianza | Elementos | Implicación arquitectónica |
