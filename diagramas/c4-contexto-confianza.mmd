@@ -19,8 +19,8 @@ flowchart TB
         TIKTOK["TikTok Business API"]
     end
 
-    subgraph ORQ["🟠 Orquestador semi-confiable"]
-        N8N["Motor de Automatización (n8n)<br/>solicita, NO decide"]
+    subgraph ORQ["🟠 Captación social (semi-confiable)"]
+        MOTOR["Motor de Automatización<br/>responde, guía y genera preventa<br/>NO toca dominio fiscal"]
     end
 
     subgraph EJEC["⚪ Ejecutor sin autoridad"]
@@ -36,12 +36,11 @@ flowchart TB
     SBC -->|XML firmado sobre HTTPS| HAC
     HAC -.->|estado aceptado/rechazado| SBC
 
-    META -->|webhook REST| SBC
-    TIKTOK -->|webhook REST| SBC
-    SBC -->|respuesta automática| META
-
-    N8N -->|REST / eventos autenticados + auditados| SBC
-    SBC -->|publica eventos de negocio| N8N
+    META -->|mensajes/preguntas (webhook REST)| MOTOR
+    TIKTOK -->|mensajes/preguntas (webhook REST)| MOTOR
+    MOTOR -->|respuesta automática + guía| META
+    MOTOR -->|respuesta automática + guía| TIKTOK
+    MOTOR -->|handoff de preventa (autenticado + auditado)| SBC
 
     SBC -->|SMTP / API| MAIL
     MAIL -.->|entrega| CLI
@@ -53,6 +52,6 @@ flowchart TB
     classDef interno fill:#d1e7dd,stroke:#0f5132;
     class HAC autoridad;
     class META,TIKTOK canal;
-    class N8N orq;
+    class MOTOR orq;
     class MAIL ejec;
     class PYME,VEND,ASIS interno;

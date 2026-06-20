@@ -184,35 +184,43 @@ El sistema no implementa una tienda virtual pública, marketplace o carrito de c
 | Vendedor / Ejecutivo comercial | Registrar clientes, generar cotizaciones, convertir cotizaciones en facturas electrónicas, consultar historial comercial, gestionar seguimiento de ventas provenientes de redes sociales |
 | Asistente administrativo | Emitir facturas electrónicas, validar información fiscal de clientes, reenviar comprobantes electrónicos, consultar estados tributarios, corregir errores operativos de facturación |
 | Cliente final | Recibir comprobantes electrónicos, consultar cotizaciones enviadas, confirmar pedidos o servicios, recibir notificaciones comerciales, interactuar mediante canales digitales |
-| Plataforma de automatización (p. ej. n8n) | Ejecutar flujos automáticos, recibir eventos comerciales, disparar procesos de facturación, sincronizar información entre sistemas, generar notificaciones automáticas |
+| Motor de automatización | Atender mensajes y preguntas de usuarios en redes sociales, responder de forma automática, guiar al usuario hacia la aplicación ante intención de compra y generar una preventa que ingresa al sistema (no participa en facturación) |
 | Servicios externos tributarios | Validar comprobantes electrónicos, recibir documentos fiscales, retornar estados de aceptación o rechazo, verificar cumplimiento tributario |
 
 ### 1.5 Núcleo arquitectónico: el flujo crítico
 
-La capacidad funcional del sistema (clientes, cotizaciones, facturación, notificaciones, auditoría) no es lo que determina su dificultad arquitectónica. El **problema central de SmartBilling Connect no es "facturar desde redes sociales", sino coordinar de forma confiable un flujo transaccional de larga duración** en el que participan canales externos no confiables, usuarios internos, un motor de automatización, un módulo fiscal, una autoridad tributaria (Hacienda), la auditoría y la notificación al cliente. Si este flujo no se modela como una cadena explícita de estados y responsabilidades, la arquitectura corre el riesgo de convertirse en una suma de módulos sin lógica transaccional clara.
+La capacidad funcional del sistema (clientes, cotizaciones, facturación, notificaciones, auditoría) no es lo que determina su dificultad arquitectónica. El **problema central de SmartBilling Connect no es "facturar desde redes sociales", sino coordinar de forma confiable un flujo transaccional de larga duración** en el que participan canales externos no confiables, una capa de automatización conversacional, usuarios internos, un módulo fiscal, una autoridad tributaria (Hacienda), la auditoría y la notificación al cliente. Si este flujo no se modela como una cadena explícita de estados y responsabilidades, la arquitectura corre el riesgo de convertirse en una suma de módulos sin lógica transaccional clara.
 
-El ciclo de vida del comprobante es la **columna vertebral** del análisis arquitectónico y se formaliza así:
+El flujo crítico tiene **dos tramos con responsables distintos**. El primero es la **captación social**, gestionada por el motor de automatización: atiende mensajes y preguntas de usuarios en redes sociales, responde de forma automática y, cuando detecta intención de compra, **guía al usuario hacia la aplicación generando una preventa** (lead de pre-venta) que ingresa al sistema. A partir de la preventa, el segundo tramo es **interno y fiscal**: dentro de la aplicación un usuario (o proceso interno) convierte la preventa en cotización y comprobante, y el sistema gestiona el ciclo fiscal hasta Hacienda. **La frontera entre ambos tramos es deliberada: el motor de automatización no entra al dominio fiscal** (ver REST-05 y sección 3.4).
+
+El ciclo de vida se formaliza así (la marca ⟦motor⟧ delimita el alcance del motor de automatización):
 
 ```
-interacción social → oportunidad/cotización → comprobante generado →
-enviado a Hacienda → pendiente | aceptado | rechazado → notificación → auditoría
+⟦motor de automatización: captación social⟧
+  interacción social → respuesta/guía automática → preventa (intención de compra)
+        │
+        ▼  (handoff: la preventa ingresa a la aplicación)
+⟦sistema: dominio interno y fiscal⟧
+  oportunidad/cotización → comprobante generado → enviado a Hacienda →
+  pendiente | aceptado | rechazado → notificación → auditoría
 ```
 
 ![Ciclo de vida del comprobante](../diagramas/ciclo-vida-factura.png)
-*Figura 1 — Ciclo de vida del comprobante electrónico y responsables de cada transición*
+*Figura 1 — Ciclo de vida: captación social (motor de automatización) y tramo interno/fiscal, con responsables de cada transición*
 
-Cada transición de este ciclo plantea preguntas arquitectónicas que el diseño debe responder en los hitos siguientes, pero que quedan formuladas desde ya: qué componente es responsable de cada transición, qué pasa si una transición falla o se ejecuta dos veces, y cuándo una transición es definitiva (irreversible). Estas preocupaciones se concretan en las fuentes de verdad e invariantes de la sección 1.6, en el escenario de idempotencia QS-06 (sección 4) y en la frontera del motor de automatización (REST-05, sección 3.3).
+Cada transición de este ciclo plantea preguntas arquitectónicas que el diseño debe responder en los hitos siguientes, pero que quedan formuladas desde ya: qué componente es responsable de cada transición, qué pasa si una transición falla o se ejecuta dos veces, y cuándo una transición es definitiva (irreversible). Estas preocupaciones se concretan en las fuentes de verdad e invariantes de la sección 1.6, en el escenario de idempotencia QS-06 (sección 4) y en la frontera del motor de automatización (REST-05 y sección 3.4).
 
 ### 1.6 Fuentes de verdad e invariantes del dominio
 
-El sistema integra varias fuentes de datos (CRM interno, módulo fiscal, n8n, Hacienda, auditoría, redes sociales). Para evitar inconsistencias, ambigüedad transaccional y exposición de datos, se declara explícitamente **quién es la fuente de verdad de cada entidad** y quién puede cambiar su estado.
+El sistema integra varias fuentes de datos (CRM interno, módulo fiscal, motor de automatización, Hacienda, auditoría, redes sociales). Para evitar inconsistencias, ambigüedad transaccional y exposición de datos, se declara explícitamente **quién es la fuente de verdad de cada entidad** y quién puede cambiar su estado.
 
 | Entidad | Fuente de verdad | Quién puede cambiar el estado | Reversibilidad |
 |---|---|---|---|
 | **Factura — datos previos al envío** (borrador, líneas, montos) | SmartBilling Connect (módulo fiscal) | Usuario autorizado o integración, dentro del sistema principal | Reversible mientras esté en borrador / no enviada |
 | **Factura — estado fiscal** (aceptado / rechazado) | **Hacienda** es la autoridad; SmartBilling refleja y conserva ese estado | Solo Hacienda determina aceptado/rechazado; el sistema nunca lo fija por su cuenta | **Irreversible** una vez aceptada |
 | **Estado `pendiente_validacion_hacienda`** | SmartBilling Connect (estado interno legítimo y auditable) | El sistema, mientras espera la respuesta de Hacienda | Transitorio: converge a aceptado/rechazado |
-| **Oportunidad de venta** | CRM interno de SmartBilling (no la red social, que es solo canal de origen) | Usuario o motor de automatización vía contrato del sistema | Reversible |
+| **Preventa** (lead de pre-venta) | Motor de automatización: la genera desde la conversación social y la entrega a la app | El motor la crea; una vez ingresada, el sistema/usuario interno la gestiona. El motor no la modifica después del handoff | Reversible (puede descartarse antes de convertirse en oportunidad) |
+| **Oportunidad de venta** | CRM interno de SmartBilling (no la red social, que es solo canal de origen) | Usuario interno (vendedor) dentro de la app; el motor de automatización solo aporta la preventa inicial, no la oportunidad | Reversible |
 | **Registro de auditoría** | Log append-only de SmartBilling | Nadie lo modifica tras escribirlo (ni administradores) | **Irreversible / inmutable** |
 | **Notificación al cliente** | Servicio de correo/mensajería (mero ejecutor, nunca fuente de verdad del estado fiscal) | El sistema dispara; el proveedor solo entrega | N/A |
 
@@ -306,7 +314,7 @@ Un stakeholder es cualquier persona, grupo u organización que tiene interés en
 |---|---|
 | Arquitectura clara con subsistemas desacoplados. | Deuda técnica acumulada por decisiones apresuradas. |
 | Stack tecnológico accesible y bien documentado. | Complejidad excesiva al integrar múltiples APIs externas. |
-| Facilidad para agregar nuevas integraciones o adaptar las existentes. | Dependencia de herramientas cuya viabilidad a largo plazo es incierta (ej. decisión pendiente sobre n8n). |
+| Facilidad para agregar nuevas integraciones o adaptar las existentes. | Dependencia de herramientas cuya viabilidad a largo plazo es incierta (ej. decisión pendiente sobre el motor de automatización). |
 | Procesos de despliegue y pruebas automatizados. | Mantenimiento de compatibilidad ante cambios de Hacienda o de redes sociales. |
  
 ---
@@ -347,11 +355,11 @@ Se incluyen únicamente los requerimientos funcionales con impacto arquitectóni
 | **ID** | **Requerimiento** | **Stakeholder** | **Por qué es un driver** |
 |---|---|---|---|
 | **RF-01** | Emisión de comprobantes electrónicos (factura, nota de crédito, nota de débito) cumpliendo el esquema XML del Ministerio de Hacienda de Costa Rica. | Dueños de PYMES, Entidades tributarias | Define el subsistema central del dominio. Obliga a un motor de facturación con generación XML, firma digital, envío al API de Hacienda y manejo de estados (aceptado/rechazado). Impone estructura de colas y reintentos. |
-| **RF-02** | Integración bidireccional con APIs de redes sociales (Meta Platforms, TikTok) para capturar mensajes, consultas y convertirlos en oportunidades de venta. | Dueños de PYMES, Clientes finales | Introduce un subsistema de integración social con sus propias fronteras, protocolos de autenticación OAuth y manejo de webhooks. Requiere un bus de eventos o intermediario para desacoplar la mensajería social del core de facturación. |
-| **RF-03** | Orquestación de flujos automatizados (cotización automática, respuesta a consultas, conversión de conversación a factura) mediante motor de workflows. | Dueños de PYMES, Personal administrativo | Obliga a incorporar un motor de automatización como componente arquitectónico separado. Define la necesidad de una capa de orquestación con triggers, acciones y conectores, además del patrón de comunicación con el rest del sistema. |
+| **RF-02** | Integración con APIs de redes sociales (Meta Platforms, TikTok) para capturar mensajes y consultas que el motor de automatización atiende y deriva como preventas. | Dueños de PYMES, Clientes finales | Introduce un subsistema de integración social con sus propias fronteras, protocolos de autenticación OAuth y manejo de webhooks. Requiere un intermediario (el motor de automatización) que desacople la mensajería social del core de facturación, recibiendo el sistema solo el handoff de preventa. |
+| **RF-03** | Automatización de la atención en redes sociales mediante un motor de workflows: responder mensajes y preguntas de usuarios, guiarlos hacia la aplicación con intención de compra y generar una **preventa** que ingresa al sistema. | Dueños de PYMES, Personal administrativo | Obliga a incorporar el motor de automatización como componente externo acotado a la **capa de captación social**, con una frontera explícita frente al dominio fiscal (sección 3.4). Define el contrato de handoff (preventa → app) y el patrón de comunicación, sin que el motor participe en la emisión fiscal. |
 | **RF-04** | Gestión multiusuario con roles diferenciados (administrador, vendedor, auditor) y permisos granulares por operación. | Administradores del sistema, Personal administrativo | Obliga a un subsistema transversal de autenticación y autorización (Identity Provider). Afecta cada punto de entrada del sistema y requiere decisiones sobre protocolos (JWT, OAuth2) y almacenamiento de sesiones. |
 | **RF-05** | Registro de auditoría completo e inmutable de todas las transacciones fiscales y acciones de usuarios. | Entidades tributarias, Administradores del sistema | Impone un log de auditoría append-only separado del almacenamiento transaccional. Afecta la estrategia de persistencia y puede requerir un almacén de eventos o base de datos dedicada para trazabilidad fiscal. |
-| **RF-06** | Procesamiento idempotente de eventos externos (webhooks de redes sociales, respuestas de Hacienda, llamadas de n8n, reintentos por timeout y acciones manuales), garantizando que un mismo evento no produzca efectos duplicados. | Dueños de PYMES, Entidades tributarias, Administradores | Es un driver porque el sistema es, por naturaleza, un receptor de eventos potencialmente duplicados. Obliga a un mecanismo transversal de claves de idempotencia / deduplicación por `event_id` y a definir qué operaciones son seguras de reintentar. Sin esto se producen efectos inaceptables: doble emisión de factura, doble notificación al cliente, doble registro de auditoría o doble cambio de estado. |
+| **RF-06** | Procesamiento idempotente de eventos externos (webhooks de redes sociales, respuestas de Hacienda, llamadas del motor de automatización, reintentos por timeout y acciones manuales), garantizando que un mismo evento no produzca efectos duplicados. | Dueños de PYMES, Entidades tributarias, Administradores | Es un driver porque el sistema es, por naturaleza, un receptor de eventos potencialmente duplicados. Obliga a un mecanismo transversal de claves de idempotencia / deduplicación por `event_id` y a definir qué operaciones son seguras de reintentar. Sin esto se producen efectos inaceptables: doble emisión de factura, doble notificación al cliente, doble registro de auditoría o doble cambio de estado. |
 
 ### 3.2 Atributos de calidad prioritarios
 
@@ -375,27 +383,27 @@ Las siguientes restricciones no son negociables y condicionan directamente las d
 | **REST-02** | Los documentos fiscales emitidos deben conservarse por un mínimo de 5 años con integridad demostrable. | Regulatoria | Obliga a una estrategia de almacenamiento de largo plazo con respaldos, checksums de integridad y posible almacenamiento en frío. Afecta la selección de base de datos y la política de retención. |
 | **REST-03** | La plataforma debe operar como servicio multi-tenant orientado a PYMES con modelo de suscripción (SaaS). | Negocio | **En un sistema fiscal, el multi-tenancy es una decisión arquitectónica crítica, no un detalle técnico.** No basta con un `tenant_id`: condiciona el aislamiento de datos fiscales entre empresas, el control de acceso por tenant, la trazabilidad y auditoría separadas por tenant, la estrategia de respaldos y recuperación por cliente, las migraciones de esquema sin afectar a todos los tenants y el cumplimiento normativo individual. Su principal riesgo arquitectónico es la **exposición cruzada de información fiscal** entre tenants, lo que obliga a centralizar la resolución de `tenant_id` en la capa de autorización (ver invariante 7 de la sección 1.6 y escenario QS-01). |
 | **REST-04** | El sistema debe integrarse con APIs externas de Meta Platforms y TikTok, sujetas a sus términos de servicio, procesos de aprobación y límites de tasa. | Técnica | Las APIs de terceros imponen rate limiting, flujos OAuth específicos y revisiones de app. Obliga a implementar circuit breakers, colas de reintento, almacenamiento local de tokens y manejo de degradación cuando las APIs no están disponibles. |
-| **REST-05** | El motor de automatización es un componente arquitectónico a definir; n8n es candidato pero la decisión está pendiente del análisis arquitectónico. **Decisión de frontera ya tomada: el motor de automatización orquesta flujos, pero NO es dueño del dominio fiscal.** | Técnica | La arquitectura debe diseñarse con una interfaz abstracta para el motor de workflows, de modo que la selección final (n8n, Temporal, solución propia) no impacte los demás subsistemas. El riesgo a evitar es que una herramienta externa concentre reglas de negocio fiscales críticas. Por eso la validación, emisión, autorización, auditoría e idempotencia permanecen dentro del sistema principal; el motor solo *solicita* operaciones mediante contratos explícitos. Obliga a definir esos contratos (API/eventos) y a autenticar y auditar cada llamada del motor como la de cualquier integración. |
+| **REST-05** | El motor de automatización (herramienta a definir) se limita a la **capa de captación social**: responde mensajes/preguntas en redes sociales, guía al usuario hacia la app y genera una preventa. **Decisión de frontera ya tomada: NO participa en el dominio fiscal ni solicita la emisión de comprobantes.** | Técnica | La arquitectura define una interfaz abstracta para el motor (herramienta intercambiable, a definir en el análisis arquitectónico) y un **contrato de handoff** preventa → app como único punto de entrada del motor. El riesgo a evitar es que una herramienta externa concentre lógica de negocio fiscal. Por eso validación, emisión, cotización, autorización, auditoría e idempotencia del dominio fiscal permanecen dentro del sistema; el motor nunca cruza esa frontera. Cada llamada del motor (handoff de preventa) se autentica y audita como cualquier integración. |
 | **REST-06** | El presupuesto y equipo corresponden a un proyecto académico/startup con recursos limitados. | Negocio | Restringe el uso de servicios cloud costosos, licencias comerciales y tecnologías que requieran expertise especializado escaso. Favorece stack open-source, servicios gestionados con capa gratuita y arquitectura que pueda operarse con un equipo pequeño. |
 
 ---
 
 > **Nota metodológica:** *Esta clasificación sigue los lineamientos del SWEBOK v3 (Capítulo 2 -- Software Design), que establece que los drivers arquitectónicos comprenden los requerimientos funcionales significativos, los atributos de calidad que el sistema debe satisfacer y las restricciones del entorno de desarrollo y operación. Los stakeholders referenciados corresponden a la sección 2 del documento de arquitectura.*
 
-> **Nota sobre n8n:** *Dado que la selección del motor de automatización está sujeta al análisis arquitectónico, REST-05 refleja esta incertidumbre como restricción técnica. La arquitectura debe diseñarse de forma que el componente de orquestación sea intercambiable, independientemente de si la decisión final es n8n, otra herramienta, o un desarrollo propio.*
+> **Nota sobre el motor de automatización:** *La selección de la herramienta sigue sujeta al análisis arquitectónico, por lo que REST-05 mantiene su intercambiabilidad (cualquier motor de workflows o desarrollo propio). Lo que sí está decidido es su **alcance**: el motor es la capa de captación social y no participa del dominio fiscal.*
 
 #### 3.4 Frontera del motor de automatización
 
-Independientemente de la herramienta elegida, la frontera de responsabilidad del motor de automatización se define explícitamente para impedir que concentre lógica fiscal crítica. Las reglas de negocio del dominio fiscal viven en **SmartBilling Connect**, no en el motor.
+El motor de automatización se limita a la **capa de captación en redes sociales**. Su responsabilidad termina cuando entrega una **preventa** a la aplicación; a partir de ahí, todo el dominio fiscal vive en **SmartBilling Connect**. Esta frontera impide que una herramienta externa concentre lógica de negocio fiscal crítica.
 
 | El motor de automatización **SÍ** puede | El motor de automatización **NO** puede |
 |---|---|
-| *Solicitar* la emisión de un comprobante a través del contrato del sistema. | *Decidir* emitir o validar fiscalmente un comprobante por su cuenta. |
-| Disparar flujos a partir de eventos de negocio (p. ej. conversación → cotización). | Modificar datos fiscales o el estado fiscal de una factura directamente. |
-| Orquestar pasos no transaccionales (notificaciones, sincronización de CRM). | Participar como coordinador de la transacción fiscal crítica. |
-| Consultar estados expuestos por la API del sistema. | Escribir en el log de auditoría o alterar su contenido. |
+| Atender, responder y dar seguimiento a mensajes/preguntas de usuarios en redes sociales. | Decidir, solicitar o validar la emisión de un comprobante fiscal. |
+| Guiar al usuario hacia la aplicación cuando detecta intención de compra. | Crear o modificar cotizaciones, facturas o cualquier dato fiscal. |
+| Generar una **preventa** y entregarla a la app mediante el contrato de handoff. | Participar como coordinador de la transacción fiscal o cambiar estados fiscales. |
+| Consultar estados públicos expuestos por la API (p. ej. para responder al usuario). | Escribir en el log de auditoría o alterar su contenido. |
 
-**Garantías sobre las acciones del motor:** cada llamada del motor se **autentica** como una integración más (credenciales propias, sin sesión de usuario humano), se **audita** igual que cualquier acción del sistema (RF-05) y es **idempotente** (RF-06), de modo que reejecutar un workflow no duplica efectos. Si un workflow queda a medio ejecutar, el estado del dominio queda determinado por el sistema principal —no por el motor— gracias a que las transiciones críticas son transaccionales dentro de SmartBilling Connect.
+**Garantías sobre las acciones del motor:** el handoff de preventa se **autentica** como una integración más (credenciales propias, sin sesión de usuario humano), se **audita** igual que cualquier acción del sistema (RF-05) y es **idempotente** (RF-06), de modo que reejecutar un workflow no genera preventas duplicadas. Si un workflow social queda a medio ejecutar, no hay impacto fiscal: el dominio fiscal solo avanza por acción interna de la app a partir de una preventa ya recibida.
 ---
 
 # BLOQUE 2 — REQUERIMIENTOS DE CALIDAD
@@ -467,11 +475,11 @@ Uno de los valores diferenciales de SmartBilling Connect es responder automátic
  
 ### QS-04 — Seguridad / Trazabilidad: Registro de auditoría ante emisión masiva de comprobantes
  
-La facturación electrónica tiene implicaciones legales directas. Cuando un proceso automatizado emite cientos de facturas en un lote, debe existir evidencia verificable de cada operación: quién la originó, cuándo ocurrió, cuál fue el resultado y que el documento no fue alterado después. Este escenario es especialmente relevante porque el actor que dispara el proceso no es un humano sino la plataforma de automatización.
+La facturación electrónica tiene implicaciones legales directas. Cuando un proceso automatizado emite cientos de facturas en un lote, debe existir evidencia verificable de cada operación: quién la originó, cuándo ocurrió, cuál fue el resultado y que el documento no fue alterado después. Este escenario es especialmente relevante porque el actor que dispara el proceso no es un humano sino un proceso interno programado del sistema (no el motor de automatización, que no participa del dominio fiscal — ver 3.4).
  
 | Elemento | Descripción |
 |---|---|
-| **Fuente** | Plataforma de automatización (n8n u otro motor de workflows) actuando como actor no humano mediante un flujo programado. |
+| **Fuente** | Proceso interno programado del sistema (p. ej. job de cierre de mes) actuando como actor no humano dentro del dominio fiscal. |
 | **Estímulo** | Emisión de 200 facturas electrónicas en lote durante un cierre de mes. |
 | **Entorno** | Operación normal en sistema multi-tenant, con varios tenants procesando transacciones simultáneamente. |
 | **Artefacto** | Log de auditoría append-only y subsistema de facturación electrónica. |
@@ -503,11 +511,11 @@ Las regulaciones fiscales no son estáticas. Hacienda actualiza periódicamente 
  
 ### QS-06 — Idempotencia / Integridad: Evento externo duplicado
 
-Por su naturaleza, el sistema recibe eventos que pueden llegar duplicados: webhooks de redes sociales reenviados, respuestas tardías o repetidas de Hacienda, reintentos por timeout y reejecuciones de workflows de n8n. Sin un tratamiento explícito, un duplicado puede provocar una doble emisión de factura, una doble notificación o un cambio de estado aplicado dos veces. Este escenario verifica que el sistema reconoce y neutraliza los duplicados (RF-06).
+Por su naturaleza, el sistema recibe eventos que pueden llegar duplicados: webhooks de redes sociales reenviados, **preventas duplicadas por reejecución de un workflow del motor de automatización**, respuestas tardías o repetidas de Hacienda y reintentos internos por timeout en la emisión fiscal. Sin un tratamiento explícito, un duplicado puede provocar una preventa repetida, una doble notificación, una doble emisión de factura (por reintento interno) o un cambio de estado aplicado dos veces. Este escenario verifica que el sistema reconoce y neutraliza los duplicados (RF-06).
 
 | Elemento | Descripción |
 |---|---|
-| **Fuente** | Sistema externo o reintento interno: webhook de Meta/TikTok reenviado, respuesta duplicada de Hacienda, o el motor de automatización (n8n) reejecutando un workflow. |
+| **Fuente** | Sistema externo o reintento interno: webhook de Meta/TikTok reenviado, handoff de preventa repetido por reejecución del motor de automatización, respuesta duplicada de Hacienda, o reintento interno de emisión fiscal por timeout. |
 | **Estímulo** | Llega un evento que ya fue procesado: la misma solicitud de emisión, la misma confirmación de Hacienda o el mismo webhook arriba dos o más veces. |
 | **Entorno** | Operación normal, con reintentos activos y al-menos-una-entrega ("at-least-once") en los canales de integración. |
 | **Artefacto** | Puntos de entrada de eventos (webhooks, API de integración, callbacks de Hacienda), almacén de claves de idempotencia y módulo de facturación. |
@@ -530,7 +538,7 @@ Las restricciones que actúan como **drivers** ya se detallaron en la sección 3
 | REST-02 | Conservación de documentos fiscales ≥ 5 años con integridad demostrable. | Regulatoria | Ministerio de Hacienda CR | Almacenamiento de largo plazo con checksums y política de retención. |
 | REST-03 | Operación SaaS multi-tenant para PYMES. | Negocio | Equipo / modelo de negocio | Aislamiento de datos fiscales por tenant; `tenant_id` centralizado en autorización (driver crítico). |
 | REST-04 | Integración con APIs de Meta Platforms y TikTok sujetas a sus ToS y rate limits. | Técnica | Proveedores externos (Meta, TikTok) | Circuit breakers, colas de reintento, OAuth y manejo de degradación. |
-| REST-05 | Motor de automatización a definir (n8n candidato); orquesta pero no es dueño del dominio fiscal. | Técnica | Equipo / análisis arquitectónico | Interfaz abstracta de workflows; reglas fiscales dentro del sistema (ver 3.4). |
+| REST-05 | Motor de automatización a definir; limitado a la captación social, no es dueño del dominio fiscal. | Técnica | Equipo / análisis arquitectónico | Interfaz abstracta de workflows; reglas fiscales dentro del sistema (ver 3.4). |
 | REST-06 | Recursos limitados de proyecto académico/startup. | Negocio | Equipo / contexto del curso | Favorece stack open-source y servicios con capa gratuita. |
 | REST-07 | Cumplimiento de la Ley 8968 de Protección de Datos Personales (Costa Rica) para datos de clientes finales. | Regulatoria | PRODHAB (regulador CR) | Consentimiento, minimización y derecho de acceso/eliminación sobre datos personales; refuerza cifrado y control de acceso (QA-01). |
 
@@ -547,9 +555,9 @@ El grupo se compromete a respetar los siguientes principios durante todo el dise
 | **Separación de responsabilidades** | El dominio fiscal, la integración social, la orquestación y la auditoría tienen ciclos de cambio y niveles de criticidad muy distintos. Separarlos evita que un cambio en un canal social afecte la lógica fiscal y permite aislar lo regulado de lo no regulado. |
 | **Diseño para el cambio (bajo acoplamiento)** | Las reglas de Hacienda y los contratos de las APIs sociales cambian con frecuencia (QA-05, QS-05). El sistema aísla el módulo fiscal y el motor de automatización tras interfaces para absorber cambios sin rediseño. |
 | **Defensa en profundidad** | Al manejar datos fiscales y personales (QA-01, REST-07), la seguridad no puede depender de una sola capa: autenticación, autorización por tenant, cifrado en tránsito/reposo y auditoría inmutable se combinan. |
-| **Fuente de verdad única por entidad** | Para evitar inconsistencias entre CRM, módulo fiscal, n8n y Hacienda, cada dato tiene un único dueño autoritativo (sección 1.6). Hacienda es autoridad del estado fiscal; el sistema, de los datos previos. |
+| **Fuente de verdad única por entidad** | Para evitar inconsistencias entre CRM, módulo fiscal, motor de automatización y Hacienda, cada dato tiene un único dueño autoritativo (sección 1.6). Hacienda es autoridad del estado fiscal; el sistema, de los datos previos. |
 | **Idempotencia por diseño** | Al ser un receptor de eventos potencialmente duplicados (RF-06, QS-06), las operaciones con efecto de negocio se diseñan para producir el mismo resultado ante reentregas. |
-| **Principio de menor privilegio (PoLA)** | Cada actor e integración —incluido el motor de automatización— opera con el mínimo de permisos necesarios; n8n puede solicitar, no decidir sobre el dominio fiscal (sección 3.4). |
+| **Principio de menor privilegio (PoLA)** | Cada actor e integración —incluido el motor de automatización— opera con el mínimo de permisos necesarios; este se limita a la captación social y a entregar preventas, sin ningún permiso sobre el dominio fiscal (sección 3.4). |
 | **KISS / YAGNI** | Dado el contexto de recursos limitados (REST-06), se evita la sobre-ingeniería: solo se introduce complejidad arquitectónica donde un driver o invariante lo justifica. |
 
 ---
@@ -583,9 +591,9 @@ El grupo se compromete a respetar los siguientes principios durante todo el dise
 | **Asistente Administrativo** | Persona / Rol | Opera el sistema para emitir comprobantes electrónicos, validar información fiscal de clientes, reenviar documentos y corregir errores operativos de facturación. Interacción: HTTPS / Web UI. |
 | **Cliente Final** | Persona / Rol externo | Recibe comprobantes electrónicos y notificaciones comerciales, consulta cotizaciones enviadas y confirma pedidos. No accede al back-office del sistema. Interacción: correo electrónico / portal web. |
 | **API Ministerio de Hacienda CR** | Sistema externo | El sistema envía comprobantes electrónicos firmados digitalmente en formato XML y consulta su estado de validación (aceptado / rechazado / en proceso). Es el punto de cumplimiento tributario obligatorio para toda factura emitida. Interacción: XML sobre HTTPS. |
-| **Meta Platforms (Instagram / WhatsApp)** | Sistema externo | El sistema recibe mensajes e interacciones de clientes enviadas a través de Instagram Direct y WhatsApp Business mediante webhooks. A su vez, envía respuestas automáticas configuradas en los flujos de atención. Interacción: REST / Webhook. |
-| **TikTok Business API** | Sistema externo | El sistema recibe eventos de interacción generados en TikTok y los sincroniza como oportunidades de venta dentro de la plataforma. Interacción: REST / Webhook. |
-| **Motor de Automatización (n8n)** | Sistema externo | El sistema publica eventos de negocio que n8n consume para orquestar flujos automáticos. A su vez, n8n envía instrucciones de vuelta al sistema para disparar procesos como la emisión de facturas. Interacción: REST / Eventos. |
+| **Meta Platforms (Instagram / WhatsApp)** | Sistema externo | Canal social donde los clientes envían mensajes e interacciones. La atención y respuesta automática las gestiona el motor de automatización, no directamente el sistema; SmartBilling recibe el resultado como preventa. Interacción: REST / Webhook (vía el motor de automatización). |
+| **TikTok Business API** | Sistema externo | Canal social cuyos eventos de interacción atiende el motor de automatización, que deriva las oportunidades con intención de compra al sistema como preventas. Interacción: REST / Webhook (vía el motor de automatización). |
+| **Motor de Automatización** | Sistema externo | Capa de captación social: atiende mensajes y preguntas de usuarios en redes sociales, responde de forma automática, los guía hacia la aplicación y, ante intención de compra, entrega una **preventa** al sistema mediante el contrato de handoff. **No participa en la emisión ni en ningún proceso fiscal.** Interacción: REST / Eventos (handoff de preventa). |
 | **Servicio de Correo Electrónico** | Sistema externo | El sistema delega en este servicio el envío de comprobantes electrónicos, cotizaciones y notificaciones a los clientes finales. Interacción: SMTP / API. |
  
 #### 7.1.1 Fronteras de confianza
@@ -597,7 +605,7 @@ No todos los actores y sistemas externos tienen el mismo nivel de confianza, y e
 | **Autoridad fiscal** | API Ministerio de Hacienda CR | Define el estado fiscal de los comprobantes (fuente de verdad del estado, sección 1.6). El sistema confía en su veredicto pero debe tolerar su indisponibilidad (QS-02) y respuestas tardías o duplicadas (QS-06). |
 | **Interno confiable** | Dueño de PYME, Vendedor, Asistente Administrativo | Operan autenticados y autorizados por tenant (RBAC). Confiables, pero toda acción es auditable (RF-05) y acotada por menor privilegio. |
 | **Externo de bajo control (canales)** | Meta Platforms, TikTok | Canales no confiables: disponibilidad y rate limits ajenos, payloads no validados. Toda entrada se valida y se trata como potencialmente duplicada o maliciosa. No son fuente de verdad de oportunidades. |
-| **Orquestador semi-confiable** | Motor de automatización (n8n) | Potencialmente riesgoso: puede disparar flujos, pero **no** es dueño del dominio fiscal (sección 3.4). Se autentica como integración, se audita y sus llamadas son idempotentes; no participa como coordinador de la transacción fiscal. |
+| **Automatización de captación social (semi-confiable)** | Motor de automatización | Acotado a la capa social: responde y guía a usuarios y entrega preventas. **No** toca el dominio fiscal (sección 3.4). Se autentica como integración, se audita y su handoff es idempotente; un fallo suyo no tiene impacto fiscal. |
 | **Ejecutor sin autoridad** | Servicio de Correo Electrónico | Solo entrega mensajes; **nunca** es fuente de verdad del estado de un comprobante. Su fallo no debe bloquear ni alterar el estado fiscal. |
 | **Externo no autenticado** | Cliente Final | Recibe comprobantes/notificaciones; no accede al back-office. Sin privilegios sobre datos de otros. |
 
