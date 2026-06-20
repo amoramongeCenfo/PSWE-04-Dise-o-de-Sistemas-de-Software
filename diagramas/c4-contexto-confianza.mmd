@@ -1,0 +1,58 @@
+---
+title: Vista de contexto con fronteras de confianza — SmartBilling Connect
+---
+flowchart TB
+    subgraph INTERNO["🟢 Interno confiable (autenticado + RBAC por tenant)"]
+        PYME["Dueño de PYME"]
+        VEND["Vendedor / Ejecutivo"]
+        ASIS["Asistente Administrativo"]
+    end
+
+    SBC{{"SmartBilling Connect<br/>(Plataforma SaaS multi-tenant)<br/>Dueño del dominio fiscal"}}
+
+    subgraph AUTORIDAD["🔵 Autoridad fiscal"]
+        HAC["API Ministerio de Hacienda CR"]
+    end
+
+    subgraph CANALES["🔴 Externo de bajo control (canales no confiables)"]
+        META["Meta Platforms<br/>(Instagram / WhatsApp)"]
+        TIKTOK["TikTok Business API"]
+    end
+
+    subgraph ORQ["🟠 Orquestador semi-confiable"]
+        N8N["Motor de Automatización (n8n)<br/>solicita, NO decide"]
+    end
+
+    subgraph EJEC["⚪ Ejecutor sin autoridad"]
+        MAIL["Servicio de Correo Electrónico"]
+    end
+
+    CLI["Cliente Final<br/>(externo no autenticado)"]
+
+    PYME -->|HTTPS / Web UI| SBC
+    VEND -->|HTTPS / Web UI| SBC
+    ASIS -->|HTTPS / Web UI| SBC
+
+    SBC -->|XML firmado sobre HTTPS| HAC
+    HAC -.->|estado aceptado/rechazado| SBC
+
+    META -->|webhook REST| SBC
+    TIKTOK -->|webhook REST| SBC
+    SBC -->|respuesta automática| META
+
+    N8N -->|REST / eventos autenticados + auditados| SBC
+    SBC -->|publica eventos de negocio| N8N
+
+    SBC -->|SMTP / API| MAIL
+    MAIL -.->|entrega| CLI
+
+    classDef autoridad fill:#cfe2ff,stroke:#0b5394;
+    classDef canal fill:#f8d7da,stroke:#b02a37;
+    classDef orq fill:#ffe5b4,stroke:#cc7a00;
+    classDef ejec fill:#e2e3e5,stroke:#6c757d;
+    classDef interno fill:#d1e7dd,stroke:#0f5132;
+    class HAC autoridad;
+    class META,TIKTOK canal;
+    class N8N orq;
+    class MAIL ejec;
+    class PYME,VEND,ASIS interno;

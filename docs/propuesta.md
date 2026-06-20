@@ -65,6 +65,8 @@
 ### 1.1 Descripción general
 El sistema propuesto, **SmartBilling Connect**, consiste en una plataforma de facturación electrónica inteligente orientada a pequeñas y medianas empresas (PYMES) que comercializan productos y servicios mediante redes sociales y canales digitales. Su propósito principal es centralizar y simplificar la gestión comercial y administrativa de negocios que actualmente manejan sus ventas de forma manual, utilizando múltiples herramientas desconectadas entre sí. La plataforma permitirá administrar clientes, registrar ventas y gestionar comprobantes electrónicos, brindando trazabilidad y control sobre el proceso comercial.
 
+> **Alcance del término "inteligente":** en este diseño, "inteligente" se refiere a la **automatización del flujo comercial basada en reglas y workflows** (disparadores, conectores y respuestas configuradas), no a inteligencia artificial generativa, clasificación, recomendación o asistencia conversacional avanzada. Esto es coherente con la exclusión 1.3.18. Por lo tanto, el sistema **no** asume los retos arquitectónicos propios de la IA generativa (trazabilidad de decisiones del modelo, evaluación de respuestas, fallback de modelo, explicabilidad); su complejidad arquitectónica proviene de la **coordinación confiable** de un flujo fiscal entre sistemas heterogéneos, no de un componente de IA.
+
 Actualmente, muchas PYMES utilizan redes sociales como principal canal de ventas, especialmente plataformas de mensajería y comercio digital. Sin embargo, estos negocios enfrentan problemas relacionados con la duplicidad de información, pérdida de seguimiento de clientes, errores en la generación de facturas y procesos operativos poco eficientes. En muchos casos, las conversaciones con clientes ocurren en redes sociales mientras la facturación se realiza manualmente en otros sistemas, generando retrasos, inconsistencias y una alta dependencia de tareas repetitivas realizadas por el personal administrativo.
 
 El sistema busca resolver este problema mediante una solución integrada que permita conectar la actividad comercial con los procesos de facturación electrónica y seguimiento de clientes. El valor principal de la plataforma radica en reducir la carga operativa, mejorar la eficiencia administrativa y aumentar la trazabilidad de las ventas realizadas por medios digitales. Además, permitirá a los negocios responder con mayor rapidez a sus clientes, disminuir errores humanos y cumplir con las obligaciones fiscales de forma más ordenada y automatizada.
@@ -185,7 +187,44 @@ El sistema no implementa una tienda virtual pública, marketplace o carrito de c
 | Plataforma de automatización (p. ej. n8n) | Ejecutar flujos automáticos, recibir eventos comerciales, disparar procesos de facturación, sincronizar información entre sistemas, generar notificaciones automáticas |
 | Servicios externos tributarios | Validar comprobantes electrónicos, recibir documentos fiscales, retornar estados de aceptación o rechazo, verificar cumplimiento tributario |
 
+### 1.5 Núcleo arquitectónico: el flujo crítico
 
+La capacidad funcional del sistema (clientes, cotizaciones, facturación, notificaciones, auditoría) no es lo que determina su dificultad arquitectónica. El **problema central de SmartBilling Connect no es "facturar desde redes sociales", sino coordinar de forma confiable un flujo transaccional de larga duración** en el que participan canales externos no confiables, usuarios internos, un motor de automatización, un módulo fiscal, una autoridad tributaria (Hacienda), la auditoría y la notificación al cliente. Si este flujo no se modela como una cadena explícita de estados y responsabilidades, la arquitectura corre el riesgo de convertirse en una suma de módulos sin lógica transaccional clara.
+
+El ciclo de vida del comprobante es la **columna vertebral** del análisis arquitectónico y se formaliza así:
+
+```
+interacción social → oportunidad/cotización → comprobante generado →
+enviado a Hacienda → pendiente | aceptado | rechazado → notificación → auditoría
+```
+
+![Ciclo de vida del comprobante](../diagramas/ciclo-vida-factura.png)
+*Figura 1 — Ciclo de vida del comprobante electrónico y responsables de cada transición*
+
+Cada transición de este ciclo plantea preguntas arquitectónicas que el diseño debe responder en los hitos siguientes, pero que quedan formuladas desde ya: qué componente es responsable de cada transición, qué pasa si una transición falla o se ejecuta dos veces, y cuándo una transición es definitiva (irreversible). Estas preocupaciones se concretan en las fuentes de verdad e invariantes de la sección 1.6, en el escenario de idempotencia QS-06 (sección 4) y en la frontera del motor de automatización (REST-05, sección 3.3).
+
+### 1.6 Fuentes de verdad e invariantes del dominio
+
+El sistema integra varias fuentes de datos (CRM interno, módulo fiscal, n8n, Hacienda, auditoría, redes sociales). Para evitar inconsistencias, ambigüedad transaccional y exposición de datos, se declara explícitamente **quién es la fuente de verdad de cada entidad** y quién puede cambiar su estado.
+
+| Entidad | Fuente de verdad | Quién puede cambiar el estado | Reversibilidad |
+|---|---|---|---|
+| **Factura — datos previos al envío** (borrador, líneas, montos) | SmartBilling Connect (módulo fiscal) | Usuario autorizado o integración, dentro del sistema principal | Reversible mientras esté en borrador / no enviada |
+| **Factura — estado fiscal** (aceptado / rechazado) | **Hacienda** es la autoridad; SmartBilling refleja y conserva ese estado | Solo Hacienda determina aceptado/rechazado; el sistema nunca lo fija por su cuenta | **Irreversible** una vez aceptada |
+| **Estado `pendiente_validacion_hacienda`** | SmartBilling Connect (estado interno legítimo y auditable) | El sistema, mientras espera la respuesta de Hacienda | Transitorio: converge a aceptado/rechazado |
+| **Oportunidad de venta** | CRM interno de SmartBilling (no la red social, que es solo canal de origen) | Usuario o motor de automatización vía contrato del sistema | Reversible |
+| **Registro de auditoría** | Log append-only de SmartBilling | Nadie lo modifica tras escribirlo (ni administradores) | **Irreversible / inmutable** |
+| **Notificación al cliente** | Servicio de correo/mensajería (mero ejecutor, nunca fuente de verdad del estado fiscal) | El sistema dispara; el proveedor solo entrega | N/A |
+
+**Invariantes no negociables del dominio fiscal.** El diseño debe preservar estas reglas en todos los hitos:
+
+1. Una factura **aceptada por Hacienda no puede ser modificada ni eliminada**; la corrección se hace mediante nota de crédito/débito, no editando el original.
+2. Toda factura pertenece a **exactamente un tenant**; ninguna operación puede cruzar esa frontera.
+3. Todo comprobante emitido tiene **trazabilidad del actor** (usuario o integración) que lo originó.
+4. Todo intento de acceso a datos fiscales es **autorizable y auditable**.
+5. Una factura **no puede pasar a "notificada"** si no existe un estado fiscal válido o explícitamente `pendiente_validacion_hacienda`.
+6. Un **rechazo de Hacienda** debe generar una ruta de corrección controlada, no un estado terminal silencioso.
+7. Ninguna consulta a repositorios de datos fiscales se ejecuta **sin un `tenant_id` válido** resuelto por el mecanismo central de autorización.
 
 ---
 # 2. Stakeholders
@@ -312,6 +351,7 @@ Se incluyen únicamente los requerimientos funcionales con impacto arquitectóni
 | **RF-03** | Orquestación de flujos automatizados (cotización automática, respuesta a consultas, conversión de conversación a factura) mediante motor de workflows. | Dueños de PYMES, Personal administrativo | Obliga a incorporar un motor de automatización como componente arquitectónico separado. Define la necesidad de una capa de orquestación con triggers, acciones y conectores, además del patrón de comunicación con el rest del sistema. |
 | **RF-04** | Gestión multiusuario con roles diferenciados (administrador, vendedor, auditor) y permisos granulares por operación. | Administradores del sistema, Personal administrativo | Obliga a un subsistema transversal de autenticación y autorización (Identity Provider). Afecta cada punto de entrada del sistema y requiere decisiones sobre protocolos (JWT, OAuth2) y almacenamiento de sesiones. |
 | **RF-05** | Registro de auditoría completo e inmutable de todas las transacciones fiscales y acciones de usuarios. | Entidades tributarias, Administradores del sistema | Impone un log de auditoría append-only separado del almacenamiento transaccional. Afecta la estrategia de persistencia y puede requerir un almacén de eventos o base de datos dedicada para trazabilidad fiscal. |
+| **RF-06** | Procesamiento idempotente de eventos externos (webhooks de redes sociales, respuestas de Hacienda, llamadas de n8n, reintentos por timeout y acciones manuales), garantizando que un mismo evento no produzca efectos duplicados. | Dueños de PYMES, Entidades tributarias, Administradores | Es un driver porque el sistema es, por naturaleza, un receptor de eventos potencialmente duplicados. Obliga a un mecanismo transversal de claves de idempotencia / deduplicación por `event_id` y a definir qué operaciones son seguras de reintentar. Sin esto se producen efectos inaceptables: doble emisión de factura, doble notificación al cliente, doble registro de auditoría o doble cambio de estado. |
 
 ### 3.2 Atributos de calidad prioritarios
 
@@ -333,9 +373,9 @@ Las siguientes restricciones no son negociables y condicionan directamente las d
 |---|---|---|---|
 | **REST-01** | Los comprobantes electrónicos deben cumplir el formato XML y el protocolo de firma digital establecidos por el Ministerio de Hacienda de Costa Rica. | Regulatoria | Fuerza el uso de librerías de firma digital (XADES-EPES), certificados específicos (Firma Digital CR) y un módulo dedicado a construir y validar el XML fiscal. No hay margen de negociación sobre el formato. |
 | **REST-02** | Los documentos fiscales emitidos deben conservarse por un mínimo de 5 años con integridad demostrable. | Regulatoria | Obliga a una estrategia de almacenamiento de largo plazo con respaldos, checksums de integridad y posible almacenamiento en frío. Afecta la selección de base de datos y la política de retención. |
-| **REST-03** | La plataforma debe operar como servicio multi-tenant orientado a PYMES con modelo de suscripción (SaaS). | Negocio | Impone aislamiento de datos entre tenants, gestión de suscripciones/licencias y una arquitectura que permita escalar por número de clientes. Condiciona el modelo de datos (tenant_id en cada tabla o esquemas separados). |
+| **REST-03** | La plataforma debe operar como servicio multi-tenant orientado a PYMES con modelo de suscripción (SaaS). | Negocio | **En un sistema fiscal, el multi-tenancy es una decisión arquitectónica crítica, no un detalle técnico.** No basta con un `tenant_id`: condiciona el aislamiento de datos fiscales entre empresas, el control de acceso por tenant, la trazabilidad y auditoría separadas por tenant, la estrategia de respaldos y recuperación por cliente, las migraciones de esquema sin afectar a todos los tenants y el cumplimiento normativo individual. Su principal riesgo arquitectónico es la **exposición cruzada de información fiscal** entre tenants, lo que obliga a centralizar la resolución de `tenant_id` en la capa de autorización (ver invariante 7 de la sección 1.6 y escenario QS-01). |
 | **REST-04** | El sistema debe integrarse con APIs externas de Meta Platforms y TikTok, sujetas a sus términos de servicio, procesos de aprobación y límites de tasa. | Técnica | Las APIs de terceros imponen rate limiting, flujos OAuth específicos y revisiones de app. Obliga a implementar circuit breakers, colas de reintento, almacenamiento local de tokens y manejo de degradación cuando las APIs no están disponibles. |
-| **REST-05** | El motor de automatización es un componente arquitectónico a definir; n8n es candidato pero la decisión está pendiente del análisis arquitectónico. | Técnica | La arquitectura debe diseñarse con una interfaz abstracta para el motor de workflows, de modo que la selección final (n8n, Temporal, solución propia) no impacte los demás subsistemas. Obliga a definir contratos claros (API/eventos) entre la orquestación y el resto del sistema. |
+| **REST-05** | El motor de automatización es un componente arquitectónico a definir; n8n es candidato pero la decisión está pendiente del análisis arquitectónico. **Decisión de frontera ya tomada: el motor de automatización orquesta flujos, pero NO es dueño del dominio fiscal.** | Técnica | La arquitectura debe diseñarse con una interfaz abstracta para el motor de workflows, de modo que la selección final (n8n, Temporal, solución propia) no impacte los demás subsistemas. El riesgo a evitar es que una herramienta externa concentre reglas de negocio fiscales críticas. Por eso la validación, emisión, autorización, auditoría e idempotencia permanecen dentro del sistema principal; el motor solo *solicita* operaciones mediante contratos explícitos. Obliga a definir esos contratos (API/eventos) y a autenticar y auditar cada llamada del motor como la de cualquier integración. |
 | **REST-06** | El presupuesto y equipo corresponden a un proyecto académico/startup con recursos limitados. | Negocio | Restringe el uso de servicios cloud costosos, licencias comerciales y tecnologías que requieran expertise especializado escaso. Favorece stack open-source, servicios gestionados con capa gratuita y arquitectura que pueda operarse con un equipo pequeño. |
 
 ---
@@ -343,6 +383,19 @@ Las siguientes restricciones no son negociables y condicionan directamente las d
 > **Nota metodológica:** *Esta clasificación sigue los lineamientos del SWEBOK v3 (Capítulo 2 -- Software Design), que establece que los drivers arquitectónicos comprenden los requerimientos funcionales significativos, los atributos de calidad que el sistema debe satisfacer y las restricciones del entorno de desarrollo y operación. Los stakeholders referenciados corresponden a la sección 2 del documento de arquitectura.*
 
 > **Nota sobre n8n:** *Dado que la selección del motor de automatización está sujeta al análisis arquitectónico, REST-05 refleja esta incertidumbre como restricción técnica. La arquitectura debe diseñarse de forma que el componente de orquestación sea intercambiable, independientemente de si la decisión final es n8n, otra herramienta, o un desarrollo propio.*
+
+#### 3.4 Frontera del motor de automatización
+
+Independientemente de la herramienta elegida, la frontera de responsabilidad del motor de automatización se define explícitamente para impedir que concentre lógica fiscal crítica. Las reglas de negocio del dominio fiscal viven en **SmartBilling Connect**, no en el motor.
+
+| El motor de automatización **SÍ** puede | El motor de automatización **NO** puede |
+|---|---|
+| *Solicitar* la emisión de un comprobante a través del contrato del sistema. | *Decidir* emitir o validar fiscalmente un comprobante por su cuenta. |
+| Disparar flujos a partir de eventos de negocio (p. ej. conversación → cotización). | Modificar datos fiscales o el estado fiscal de una factura directamente. |
+| Orquestar pasos no transaccionales (notificaciones, sincronización de CRM). | Participar como coordinador de la transacción fiscal crítica. |
+| Consultar estados expuestos por la API del sistema. | Escribir en el log de auditoría o alterar su contenido. |
+
+**Garantías sobre las acciones del motor:** cada llamada del motor se **autentica** como una integración más (credenciales propias, sin sesión de usuario humano), se **audita** igual que cualquier acción del sistema (RF-05) y es **idempotente** (RF-06), de modo que reejecutar un workflow no duplica efectos. Si un workflow queda a medio ejecutar, el estado del dominio queda determinado por el sistema principal —no por el motor— gracias a que las transiciones críticas son transaccionales dentro de SmartBilling Connect.
 ---
 
 # BLOQUE 2 — REQUERIMIENTOS DE CALIDAD
@@ -354,7 +407,7 @@ Definir atributos de calidad en abstracto no es suficiente para tomar decisiones
  
 Cada escenario en esta sección sigue la estructura de seis elementos definida en la norma ISO/IEEE: fuente del estímulo, estímulo, entorno de operación, artefacto afectado, respuesta esperada del sistema y medida de respuesta. Las medidas son siempre numéricas; expresiones como "rápido" o "disponible" no califican como criterios de aceptación en un diseño arquitectónico serio.
  
-Se documentan cinco escenarios que cubren cuatro atributos de calidad distintos: seguridad, disponibilidad, rendimiento y modificabilidad. Estos atributos fueron priorizados en la sección 3.2 como los más críticos para el dominio de SmartBilling Connect. Al cierre de la sección se analizan las tensiones entre escenarios que entran en conflicto, porque es precisamente en esos conflictos donde se toman las decisiones arquitectónicas más importantes.
+Se documentan seis escenarios que cubren cinco preocupaciones de calidad distintas: seguridad, disponibilidad, rendimiento, modificabilidad e idempotencia/integridad transaccional. Estos atributos fueron priorizados en la sección 3.2 como los más críticos para el dominio de SmartBilling Connect. Las medidas se expresan como **criterios de aceptación verificables en pruebas controladas**, no como deseos absolutos: en ingeniería casi nunca se puede demostrar un "cero" en términos absolutos, por lo que se acota a lo que una suite de pruebas puede comprobar. Al cierre de la sección se analizan las tensiones entre escenarios que entran en conflicto, porque es precisamente en esos conflictos donde se toman las decisiones arquitectónicas más importantes.
  
 ---
  
@@ -369,9 +422,9 @@ En una plataforma multi-tenant, el riesgo más serio no siempre viene de afuera:
 | **Entorno** | Sistema en operación normal, con múltiples tenants activos simultáneamente. |
 | **Artefacto** | Subsistema de autenticación y autorización (Identity Provider) y capa de acceso a datos con filtros por `tenant_id`. |
 | **Respuesta** | El sistema rechaza la solicitud con HTTP 403, registra el intento en el log de auditoría inmutable con timestamp, IP de origen, usuario y recurso solicitado, y no devuelve ningún dato del tenant objetivo. |
-| **Medida de respuesta** | Cero registros de tenants ajenos expuestos por solicitud no autorizada. Evento de intento registrado en auditoría en ≤ 500 ms. Tasa de falsos negativos (accesos indebidos no detectados) igual a cero en pruebas de penetración internas sobre el modelo de control RBAC. |
+| **Medida de respuesta** | El **100 % de los intentos incluidos en la suite de pruebas de autorización** (RBAC + aislamiento de tenant) son bloqueados con HTTP 403. **Ninguna consulta sin `tenant_id` válido puede ejecutarse contra los repositorios de datos fiscales** (verificado en pruebas de integración). Toda consulta multi-tenant pasa por el mecanismo centralizado de autorización. El evento de intento queda registrado en auditoría en ≤ 500 ms. Ningún registro de un tenant ajeno aparece en la respuesta para los casos cubiertos por la suite. |
  
- > **Tensión con ESC-04 — Seguridad vs. Rendimiento:** El registro de auditoría que exige ESC-01 por cada intento de acceso no autorizado comparte la misma infraestructura de log append-only que ESC-04 utiliza para trazabilidad fiscal. Si ese log se convierte en un cuello de botella bajo carga alta, ambos escenarios se ven afectados. La decisión de diseño implicada es la misma que se detalla en ESC-04: escritura asíncrona con garantía de entrega mediante patrón outbox o cola durable.
+ > **Tensión con QS-04 — Seguridad vs. Rendimiento:** El registro de auditoría que exige QS-01 por cada intento de acceso no autorizado comparte la misma infraestructura de log append-only que QS-04 utiliza para trazabilidad fiscal. Si ese log se convierte en un cuello de botella bajo carga alta, ambos escenarios se ven afectados. La decisión de diseño implicada es la misma que se detalla en QS-04: persistir el evento de auditoría de forma transaccional en un outbox durable antes de responder y procesar el log append-only final de forma asíncrona, con reintentos, orden e idempotencia. Esto evita la falsa contradicción entre "auditoría obligatoria" y "procesamiento asíncrono".
 
 
 ---
@@ -387,9 +440,9 @@ La plataforma depende de una API externa para validar los comprobantes electrón
 | **Entorno** | Sistema en operación durante hora pico de facturación, entre las 8:00 a.m. y las 6:00 p.m. hora Costa Rica. |
 | **Artefacto** | Módulo de facturación electrónica y la cola de reintentos asociada para persistencia temporal de documentos pendientes. |
 | **Respuesta** | El sistema acepta el comprobante generado localmente, lo encola para reenvío automático, comunica al usuario el estado "pendiente de validación fiscal" y continúa operando con normalidad para todas las demás funciones. Cuando la conectividad se restaura, procesa la cola en orden FIFO sin intervención manual. |
-| **Medida de respuesta** | Tiempo de degradación perceptible para el usuario ≤ 2 segundos (únicamente cambia el estado visible del comprobante). Documentos encolados procesados automáticamente en ≤ 10 minutos tras la restauración del servicio externo. Disponibilidad del flujo de facturación local, sin depender de Hacienda, ≥ 99.5 % mensual. Cero pérdidas de documentos encolados ante reinicios del sistema. |
+| **Medida de respuesta** | Tiempo de degradación perceptible para el usuario ≤ 2 segundos (únicamente cambia el estado visible del comprobante). Documentos encolados procesados automáticamente en ≤ 10 minutos tras la restauración del servicio externo. Disponibilidad del flujo de facturación local, sin depender de Hacienda, ≥ 99.5 % mensual. Ningún documento encolado se pierde ante reinicios del sistema en la suite de pruebas de resiliencia, garantizado por persistencia durable de la cola. |
  
- > **Tensión con ESC-04 — Disponibilidad vs. Integridad fiscal:** ESC-02 requiere que el sistema persista comprobantes localmente cuando Hacienda no responde. Pero ESC-04 exige que cada comprobante tenga su entrada de auditoría con un estado definitivo. Durante una ventana de indisponibilidad, el estado real del comprobante ante Hacienda es desconocido, lo que crea una inconsistencia temporal entre el log interno y el registro fiscal oficial. La decisión de diseño implicada es modelar `pendiente_validacion_hacienda` como un estado fiscal legítimo y auditable: el log captura el timestamp de encolado y el de confirmación posterior, de modo que la integridad del proceso queda trazada aunque la validación no sea inmediata.
+ > **Tensión con QS-04 — Disponibilidad vs. Integridad fiscal:** QS-02 requiere que el sistema persista comprobantes localmente cuando Hacienda no responde. Pero QS-04 exige que cada comprobante tenga su entrada de auditoría con un estado definitivo. Durante una ventana de indisponibilidad, el estado real del comprobante ante Hacienda es desconocido, lo que crea una inconsistencia temporal entre el log interno y el registro fiscal oficial. La decisión de diseño implicada es modelar `pendiente_validacion_hacienda` como un estado fiscal legítimo y auditable: el log captura el timestamp de encolado y el de confirmación posterior, de modo que la integridad del proceso queda trazada aunque la validación no sea inmediata.
 
 
 ---
@@ -407,7 +460,7 @@ Uno de los valores diferenciales de SmartBilling Connect es responder automátic
 | **Respuesta** | El sistema procesa cada evento, identifica si el cliente ya existe en el CRM, genera la respuesta automática configurada y la envía por el canal de origen, sin requerir intervención humana en ningún paso. |
 | **Medida de respuesta** | Tiempo de respuesta extremo a extremo —desde la recepción del webhook hasta el envío de la respuesta al cliente— ≤ 4 segundos en el percentil 95 bajo la carga descrita. Throughput mínimo sostenido de 50 eventos por minuto sin degradación. Tasa de mensajes no procesados por timeout del motor inferior al 1 % del total recibido. |
  
- > **Tensión con ESC-01 y ESC-04 — Rendimiento vs. Seguridad:** El log de auditoría append-only exigido por ESC-01 y ESC-04 introduce una escritura obligatoria en cada operación sensible. Si esa escritura es síncrona y bloqueante dentro del camino crítico del procesamiento de webhooks, la latencia acumulada puede superar fácilmente los 4 segundos bajo carga sostenida. La decisión de diseño implicada es implementar el log como escritura asíncrona con garantía de entrega (patrón outbox o cola durable). La exigencia de registro previo a retornar respuesta aplica estrictamente a operaciones fiscales; para eventos comerciales de redes sociales es aceptable un modelo "at-least-once" con verificación post-proceso.
+ > **Tensión con QS-01 y QS-04 — Rendimiento vs. Seguridad:** El log de auditoría append-only exigido por QS-01 y QS-04 introduce una escritura obligatoria en cada operación sensible. Si esa escritura es síncrona y bloqueante dentro del camino crítico del procesamiento de webhooks, la latencia acumulada puede superar fácilmente los 4 segundos bajo carga sostenida. La decisión de diseño implicada distingue dos casos: para **operaciones fiscales**, el evento se persiste transaccionalmente en un outbox durable antes de responder y el log append-only final se procesa de forma asíncrona (no es un bloqueo síncrono del camino crítico); para **eventos comerciales de redes sociales**, es aceptable un modelo "at-least-once" con verificación post-proceso. En ambos casos el procesamiento asíncrono garantiza reintentos, orden, idempotencia y detección de duplicados.
 
 
 ---
@@ -423,9 +476,9 @@ La facturación electrónica tiene implicaciones legales directas. Cuando un pro
 | **Entorno** | Operación normal en sistema multi-tenant, con varios tenants procesando transacciones simultáneamente. |
 | **Artefacto** | Log de auditoría append-only y subsistema de facturación electrónica. |
 | **Respuesta** | Por cada comprobante emitido, el sistema registra en el log de auditoría la identidad del actor (usuario o integración), el tenant de origen, un timestamp con precisión de milisegundo, el número de comprobante, el estado resultante (aceptado, rechazado o pendiente) y el hash de integridad del documento XML. Ningún actor del sistema —incluyendo administradores— puede modificar ni eliminar entradas del log una vez escritas. |
-| **Medida de respuesta** | El 100 % de los comprobantes emitidos tiene su entrada correspondiente en el log antes de que el sistema retorne la respuesta al cliente. La latencia adicional que introduce el registro de auditoría es ≤ 80 ms por comprobante. La integridad del log es verificable mediante hashes encadenados: ninguna entrada puede ser alterada sin invalidar todas las posteriores. El log se conserva por un mínimo de 5 años, en cumplimiento de la restricción REST-02. |
+| **Medida de respuesta** | Antes de que el sistema retorne la respuesta de una operación fiscal, el evento de auditoría se **persiste transaccionalmente en un outbox durable** (misma transacción que el cambio de estado del comprobante); el procesamiento hacia el log append-only final ocurre de forma asíncrona, con reintentos, orden garantizado y deduplicación. Así, el 100 % de los comprobantes emitidos en la suite de pruebas tiene su evento de auditoría persistido de forma durable antes de responder, sin que el log final sea un bloqueo síncrono en el camino crítico. La latencia adicional del registro transaccional en outbox es ≤ 80 ms por comprobante. La integridad del log es verificable mediante hashes encadenados: ninguna entrada puede alterarse sin invalidar todas las posteriores. El log se conserva por un mínimo de 5 años (REST-02). |
  
- > **Tensión con ESC-05 — Trazabilidad vs. Modificabilidad:** El despliegue en caliente requerido por ESC-05 implica que durante la ventana de transición pueden coexistir en producción dos versiones del módulo fiscal. El log de auditoría debe mantener coherencia entre registros generados por versiones distintas del mismo módulo, y un token válido para una versión no debería poder operar contra la otra. La decisión de diseño implicada es que cada entrada del log incluya la versión del módulo fiscal que generó el comprobante, y que el subsistema de autorización aplique control de versión en los contratos de API internos.
+ > **Tensión con QS-05 — Trazabilidad vs. Modificabilidad:** El despliegue en caliente requerido por QS-05 implica que durante la ventana de transición pueden coexistir en producción dos versiones del módulo fiscal. El log de auditoría debe mantener coherencia entre registros generados por versiones distintas del mismo módulo, y un token válido para una versión no debería poder operar contra la otra. La decisión de diseño implicada es que cada entrada del log incluya la versión del módulo fiscal que generó el comprobante, y que el subsistema de autorización aplique control de versión en los contratos de API internos.
 
 
 ---
@@ -443,7 +496,25 @@ Las regulaciones fiscales no son estáticas. Hacienda actualiza periódicamente 
 | **Respuesta** | El equipo de desarrollo modifica exclusivamente el módulo fiscal sin tocar otros subsistemas. El cambio atraviesa el pipeline de integración continua, se valida en el ambiente de pruebas y se despliega en producción sin downtime mediante un despliegue en caliente. |
 | **Medida de respuesta** | Tiempo total desde la publicación del nuevo esquema hasta el despliegue en producción validado: ≤ 10 días hábiles. Número de subsistemas ajenos al módulo fiscal que requieren modificación: cero. Cobertura de pruebas automatizadas del módulo fiscal antes del despliegue: ≥ 90 % de los casos de validación definidos por Hacienda. |
  
- > **Tensión con ESC-01 y ESC-04 — Modificabilidad vs. Seguridad:** La coexistencia de dos versiones del módulo fiscal durante el despliegue amplía temporalmente la superficie de ataque del sistema. Esta tensión ya fue abordada desde la perspectiva de trazabilidad en ESC-04; desde la perspectiva de acceso, la decisión complementaria es que el subsistema de autorización emita tokens con alcance de versión explícito, de modo que una sesión autenticada solo pueda operar contra la versión del módulo para la que fue emitida.
+ > **Tensión con QS-01 y QS-04 — Modificabilidad vs. Seguridad:** La coexistencia de dos versiones del módulo fiscal durante el despliegue amplía temporalmente la superficie de ataque del sistema. Esta tensión ya fue abordada desde la perspectiva de trazabilidad en QS-04; desde la perspectiva de acceso, la decisión complementaria es que el subsistema de autorización emita tokens con alcance de versión explícito, de modo que una sesión autenticada solo pueda operar contra la versión del módulo para la que fue emitida.
+
+
+---
+ 
+### QS-06 — Idempotencia / Integridad: Evento externo duplicado
+
+Por su naturaleza, el sistema recibe eventos que pueden llegar duplicados: webhooks de redes sociales reenviados, respuestas tardías o repetidas de Hacienda, reintentos por timeout y reejecuciones de workflows de n8n. Sin un tratamiento explícito, un duplicado puede provocar una doble emisión de factura, una doble notificación o un cambio de estado aplicado dos veces. Este escenario verifica que el sistema reconoce y neutraliza los duplicados (RF-06).
+
+| Elemento | Descripción |
+|---|---|
+| **Fuente** | Sistema externo o reintento interno: webhook de Meta/TikTok reenviado, respuesta duplicada de Hacienda, o el motor de automatización (n8n) reejecutando un workflow. |
+| **Estímulo** | Llega un evento que ya fue procesado: la misma solicitud de emisión, la misma confirmación de Hacienda o el mismo webhook arriba dos o más veces. |
+| **Entorno** | Operación normal, con reintentos activos y al-menos-una-entrega ("at-least-once") en los canales de integración. |
+| **Artefacto** | Puntos de entrada de eventos (webhooks, API de integración, callbacks de Hacienda), almacén de claves de idempotencia y módulo de facturación. |
+| **Respuesta** | El sistema detecta el duplicado mediante una clave de idempotencia / `event_id` y reconoce la operación como ya aplicada, retornando el resultado previo sin volver a ejecutar el efecto. No se emite una segunda factura, no se envía una segunda notificación y no se duplica el registro de auditoría. |
+| **Medida de respuesta** | En la suite de pruebas de idempotencia, el 100 % de los eventos duplicados reconocidos produce **exactamente un** efecto de negocio (una factura, una notificación, una entrada de auditoría lógica). Ninguna operación fiscal marcada como idempotente genera un segundo comprobante ante reentrega. La ventana de deduplicación cubre al menos el periodo máximo de reintento configurado para cada canal. |
+ 
+ > **Tensión con QS-03 — Idempotencia vs. Rendimiento:** La verificación de la clave de idempotencia agrega una consulta al almacén de deduplicación en el camino de cada evento. Bajo la carga de QS-03 (50 eventos/min) esto suma latencia. La decisión de diseño implicada es usar un almacén de claves de baja latencia (p. ej. índice único o caché durable) y aplicar la verificación solo a operaciones con efecto de negocio, no a consultas de solo lectura.
 
 
 ---
@@ -451,25 +522,35 @@ Las regulaciones fiscales no son estáticas. Hacienda actualiza periódicamente 
 
 ## 5. Restricciones
 
-> **Instrucciones:** Las restricciones son decisiones que ya fueron tomadas antes de que el grupo empiece a diseñar — no son negociables. Pueden ser tecnológicas (el cliente ya tiene Oracle), de negocio (el sistema debe estar listo en 6 meses), regulatorias (cumplimiento de la Ley 8968 en Costa Rica) o de equipo (el grupo solo conoce Java). Sé honesto — las restricciones reales ayudan a justificar decisiones de diseño que de otra forma parecerían arbitrarias.
+Las restricciones que actúan como **drivers** ya se detallaron en la sección 3.3 (REST-01 a REST-06), porque condicionan directamente decisiones arquitectónicas. Esta sección consolida la **lista completa y autoritativa** de restricciones del proyecto e incorpora la columna **Origen** (quién impone cada restricción), que complementa el análisis de impacto de 3.3. Para evitar duplicación, el detalle de impacto en el diseño permanece en 3.3; aquí se resume y se añade el origen.
 
-| ID | Restricción | Tipo | Origen | Impacto en el diseño |
+| ID | Restricción | Tipo | Origen | Impacto en el diseño (resumen — ver 3.3) |
 |---|---|---|---|---|
-| REST-01 | [Descripción precisa] | Técnica / Negocio / Regulatoria / Equipo | [Quién la impone] | [Cómo limita o guía el diseño] |
-| REST-02 | | | | |
+| REST-01 | Comprobantes en formato XML y firma digital del Ministerio de Hacienda de Costa Rica. | Regulatoria | Ministerio de Hacienda CR | Módulo fiscal dedicado con firma XADES-EPES y certificados Firma Digital CR. |
+| REST-02 | Conservación de documentos fiscales ≥ 5 años con integridad demostrable. | Regulatoria | Ministerio de Hacienda CR | Almacenamiento de largo plazo con checksums y política de retención. |
+| REST-03 | Operación SaaS multi-tenant para PYMES. | Negocio | Equipo / modelo de negocio | Aislamiento de datos fiscales por tenant; `tenant_id` centralizado en autorización (driver crítico). |
+| REST-04 | Integración con APIs de Meta Platforms y TikTok sujetas a sus ToS y rate limits. | Técnica | Proveedores externos (Meta, TikTok) | Circuit breakers, colas de reintento, OAuth y manejo de degradación. |
+| REST-05 | Motor de automatización a definir (n8n candidato); orquesta pero no es dueño del dominio fiscal. | Técnica | Equipo / análisis arquitectónico | Interfaz abstracta de workflows; reglas fiscales dentro del sistema (ver 3.4). |
+| REST-06 | Recursos limitados de proyecto académico/startup. | Negocio | Equipo / contexto del curso | Favorece stack open-source y servicios con capa gratuita. |
+| REST-07 | Cumplimiento de la Ley 8968 de Protección de Datos Personales (Costa Rica) para datos de clientes finales. | Regulatoria | PRODHAB (regulador CR) | Consentimiento, minimización y derecho de acceso/eliminación sobre datos personales; refuerza cifrado y control de acceso (QA-01). |
+
+> **Nota:** REST-07 se incorpora en este avance porque el sistema procesa datos personales de clientes finales (contacto, identificación fiscal) provenientes de redes sociales, lo que activa la Ley 8968 además del régimen tributario.
 
 ---
 
 ## 6. Principios de diseño adoptados
 
-> **Instrucciones:** Listá los principios que el grupo se compromete a respetar durante todo el diseño. No los listés todos — elegí los que son más relevantes para este sistema y explicá por qué cada uno importa en este contexto. En la sección 12 vas a demostrar con evidencia concreta que los respetaste.
+El grupo se compromete a respetar los siguientes principios durante todo el diseño. Se eligieron por su relevancia directa para un sistema fiscal, multi-tenant y orientado a eventos; en la sección 12 se aportará evidencia concreta de su aplicación.
 
 | Principio | Justificación para este sistema |
 |---|---|
-| [ej. Separación de responsabilidades] | [Por qué este principio es especialmente importante dado el tipo de sistema] |
-| [ej. Diseño para el cambio] | |
-| [ej. Defensa en profundidad] | |
-| [Agregar los que apliquen: SOLID, DRY, KISS, PoLA, etc.] | |
+| **Separación de responsabilidades** | El dominio fiscal, la integración social, la orquestación y la auditoría tienen ciclos de cambio y niveles de criticidad muy distintos. Separarlos evita que un cambio en un canal social afecte la lógica fiscal y permite aislar lo regulado de lo no regulado. |
+| **Diseño para el cambio (bajo acoplamiento)** | Las reglas de Hacienda y los contratos de las APIs sociales cambian con frecuencia (QA-05, QS-05). El sistema aísla el módulo fiscal y el motor de automatización tras interfaces para absorber cambios sin rediseño. |
+| **Defensa en profundidad** | Al manejar datos fiscales y personales (QA-01, REST-07), la seguridad no puede depender de una sola capa: autenticación, autorización por tenant, cifrado en tránsito/reposo y auditoría inmutable se combinan. |
+| **Fuente de verdad única por entidad** | Para evitar inconsistencias entre CRM, módulo fiscal, n8n y Hacienda, cada dato tiene un único dueño autoritativo (sección 1.6). Hacienda es autoridad del estado fiscal; el sistema, de los datos previos. |
+| **Idempotencia por diseño** | Al ser un receptor de eventos potencialmente duplicados (RF-06, QS-06), las operaciones con efecto de negocio se diseñan para producir el mismo resultado ante reentregas. |
+| **Principio de menor privilegio (PoLA)** | Cada actor e integración —incluido el motor de automatización— opera con el mínimo de permisos necesarios; n8n puede solicitar, no decidir sobre el dominio fiscal (sección 3.4). |
+| **KISS / YAGNI** | Dado el contexto de recursos limitados (REST-06), se evita la sobre-ingeniería: solo se introduce complejidad arquitectónica donde un driver o invariante lo justifica. |
 
 ---
 
@@ -492,7 +573,7 @@ Las regulaciones fiscales no son estáticas. Hacienda actualiza periódicamente 
 > **Instrucciones:** Incluí el diagrama (imagen exportada o código PlantUML/Mermaid en `/diagramas/c4-contexto.puml`). Debajo del diagrama, describí cada elemento: el sistema central, cada actor externo (persona o rol) y cada sistema externo, con una oración que explique la naturaleza de la relación.
 
 ![Vista de contexto](../diagramas/c4-contexto.png)
-*Figura 1 — Vista de contexto del sistema SmartBilling Connect*
+*Figura 2 — Vista de contexto del sistema SmartBilling Connect*
 
 | Elemento | Tipo | Descripción de la relación |
 |---|---|---|
@@ -507,6 +588,21 @@ Las regulaciones fiscales no son estáticas. Hacienda actualiza periódicamente 
 | **Motor de Automatización (n8n)** | Sistema externo | El sistema publica eventos de negocio que n8n consume para orquestar flujos automáticos. A su vez, n8n envía instrucciones de vuelta al sistema para disparar procesos como la emisión de facturas. Interacción: REST / Eventos. |
 | **Servicio de Correo Electrónico** | Sistema externo | El sistema delega en este servicio el envío de comprobantes electrónicos, cotizaciones y notificaciones a los clientes finales. Interacción: SMTP / API. |
  
+#### 7.1.1 Fronteras de confianza
+
+No todos los actores y sistemas externos tienen el mismo nivel de confianza, y esa distinción —no solo el diagrama— guía decisiones de seguridad, validación e idempotencia. Se clasifican así:
+
+| Nivel de confianza | Elementos | Implicación arquitectónica |
+|---|---|---|
+| **Autoridad fiscal** | API Ministerio de Hacienda CR | Define el estado fiscal de los comprobantes (fuente de verdad del estado, sección 1.6). El sistema confía en su veredicto pero debe tolerar su indisponibilidad (QS-02) y respuestas tardías o duplicadas (QS-06). |
+| **Interno confiable** | Dueño de PYME, Vendedor, Asistente Administrativo | Operan autenticados y autorizados por tenant (RBAC). Confiables, pero toda acción es auditable (RF-05) y acotada por menor privilegio. |
+| **Externo de bajo control (canales)** | Meta Platforms, TikTok | Canales no confiables: disponibilidad y rate limits ajenos, payloads no validados. Toda entrada se valida y se trata como potencialmente duplicada o maliciosa. No son fuente de verdad de oportunidades. |
+| **Orquestador semi-confiable** | Motor de automatización (n8n) | Potencialmente riesgoso: puede disparar flujos, pero **no** es dueño del dominio fiscal (sección 3.4). Se autentica como integración, se audita y sus llamadas son idempotentes; no participa como coordinador de la transacción fiscal. |
+| **Ejecutor sin autoridad** | Servicio de Correo Electrónico | Solo entrega mensajes; **nunca** es fuente de verdad del estado de un comprobante. Su fallo no debe bloquear ni alterar el estado fiscal. |
+| **Externo no autenticado** | Cliente Final | Recibe comprobantes/notificaciones; no accede al back-office. Sin privilegios sobre datos de otros. |
+
+> **Nota:** La versión del diagrama C4 de contexto (Figura 2) debe agrupar visualmente estos elementos por frontera de confianza para que el límite entre "lo que el sistema controla" y "lo que delega o recibe de terceros" sea explícito.
+
 ---
 
 ### 7.2 Vista de estructura interna

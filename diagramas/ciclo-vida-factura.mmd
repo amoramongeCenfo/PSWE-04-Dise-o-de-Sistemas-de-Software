@@ -1,0 +1,46 @@
+---
+title: Ciclo de vida del comprobante electrónico — SmartBilling Connect
+---
+stateDiagram-v2
+    [*] --> InteraccionSocial: mensaje en red social (Meta / TikTok)
+    InteraccionSocial --> Oportunidad: CRM registra oportunidad/cotización
+    note right of InteraccionSocial
+        Canal externo NO confiable.
+        Fuente de verdad de la oportunidad = CRM interno,
+        no la red social.
+    end note
+
+    Oportunidad --> ComprobanteGenerado: usuario o n8n SOLICITA emisión
+    note right of Oportunidad
+        n8n puede solicitar, NO decidir.
+        Validación y emisión = módulo fiscal del sistema.
+    end note
+
+    ComprobanteGenerado --> EnviadoAHacienda: firma XAdES-EPES + envío XML
+    EnviadoAHacienda --> PendienteValidacion: timeout / 5xx de Hacienda
+    EnviadoAHacienda --> Aceptado: Hacienda responde aceptado
+    EnviadoAHacienda --> Rechazado: Hacienda responde rechazado
+
+    PendienteValidacion --> Aceptado: reintento FIFO (idempotente)
+    PendienteValidacion --> Rechazado: reintento FIFO (idempotente)
+    note left of PendienteValidacion
+        Estado fiscal legítimo y auditable (QS-02).
+        El sistema es fuente de verdad de este estado transitorio.
+    end note
+
+    Aceptado --> Notificado: notificación al cliente (correo / mensajería)
+    Rechazado --> Correccion: ruta de corrección controlada (nota crédito/débito)
+    Correccion --> ComprobanteGenerado: reemisión
+
+    Notificado --> Auditado: registro append-only inmutable
+    Auditado --> [*]
+
+    note right of Aceptado
+        IRREVERSIBLE: una factura aceptada
+        no puede modificarse ni eliminarse.
+        Fuente de verdad del estado = Hacienda.
+    end note
+    note right of Auditado
+        Toda transición fiscal queda registrada
+        (actor, tenant, timestamp, hash). RF-05.
+    end note
