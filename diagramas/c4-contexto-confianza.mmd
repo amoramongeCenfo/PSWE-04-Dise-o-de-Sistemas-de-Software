@@ -36,14 +36,14 @@ flowchart TB
     SBC -->|XML firmado sobre HTTPS| HAC
     HAC -.->|estado aceptado/rechazado| SBC
 
-    META -->|mensajes/preguntas (webhook REST)| MOTOR
-    TIKTOK -->|mensajes/preguntas (webhook REST)| MOTOR
+    META -->|"mensajes/preguntas (webhook REST)"| MOTOR
+    TIKTOK -->|"mensajes/preguntas (webhook REST)"| MOTOR
     MOTOR -->|respuesta automática + guía| META
     MOTOR -->|respuesta automática + guía| TIKTOK
-    MOTOR -->|handoff de preventa (autenticado + auditado)| SBC
+    MOTOR -->|"handoff de preventa (autenticado + auditado)"| SBC
 
     SBC -->|SMTP / API| MAIL
-    MAIL -.->|entrega| CLI
+    MAIL -.->|"entrega"| CLI
 
     classDef autoridad fill:#cfe2ff,stroke:#0b5394;
     classDef canal fill:#f8d7da,stroke:#b02a37;
