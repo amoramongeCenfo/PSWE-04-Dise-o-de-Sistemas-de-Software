@@ -12,8 +12,8 @@
 | **URL del repositorio** | https://github.com/amoramongeCenfo/PSWE-04-Dise-o-de-Sistemas-de-Software/tree/main |
 | **Docente** | Juan Mauricio Leandro Jiménez |
 | **Cuatrimestre** | 2026 — 02 |
-| **Versión del documento** | 0.2 — Avance 1 (en curso) |
-| **Fecha de última actualización** | 2026-06-09 |
+| **Versión del documento** | 0.3 — Avance 2 (en curso) |
+| **Fecha de última actualización** | 2026-07-04 |
 
 ---
 
@@ -23,7 +23,7 @@
 |---|---|---|---|---|
 | 0.1 | 2026-05-23 | Propuesta (S03) | Creación del documento inicial | Edgar Jacob, Brandon Garita, Alejandro Mora |
 | 0.2 | 2026-06-12 | Avance 1 (S07) | Descripción del sistema, alcance, stakeholders, drivers arquitectónicos, escenarios de calidad y Vista de Contexto C4 | Edgar Jacob, Brandon Garita, Alejandro Mora |
-| 0.3 | [fecha] | Avance 2 (S11) | [descripción] | [nombres] |
+| 0.3 | 2026-07-04 | Avance 2 (S11) | Vista de estructura interna C4 nivel 2 (contenedores) con justificación de notación, diagrama y tabla descriptiva, y definición del stack tecnológico (.NET 8 / ASP.NET Core, SQL Server, Keycloak, RabbitMQ, MinIO); vista de comportamiento con diagramas de secuencia de los flujos críticos; estilo(s) arquitectónico(s) adoptado(s) con alternativas y análisis de trade-offs; y registro de decisiones (ADRs). | Edgar Jacob, Brandon Garita, Alejandro Mora |
 | 1.0 | [fecha] | Entrega final (S14) | Documento completo | [nombres] |
 
 ---
@@ -628,20 +628,38 @@ No todos los actores y sistemas externos tienen el mismo nivel de confianza, y e
 > **Instrucciones:** Para cada contenedor o componente principal, describí: su responsabilidad, la tecnología usada, las interfaces que expone y las dependencias que tiene. Las relaciones entre contenedores deben indicar el protocolo o mecanismo de comunicación (REST, gRPC, eventos, SQL, etc.).
 
 #### 7.2.1 Justificación de notación
-> Si usás C4 contenedores, escribí "Se usa C4 nivel 2 porque el sistema tiene N unidades desplegables separadas: [listá]. Si usás una alternativa: "No se usa C4 nivel 2 porque [razón]. En su lugar se usa [notación] porque [justificación]."
 
-[Completar]
+**Se usa C4 nivel 2 (Container Diagram)** porque SmartBilling Connect no es un monolito único ni un firmware/pipeline sin unidades desplegables: es una plataforma SaaS multi-tenant compuesta por **nueve unidades desplegables y de almacenamiento con frontera propia**, que se ejecutan y escalan de forma independiente y que se comunican por protocolos explícitos. C4 nivel 2 es la representación más honesta porque el valor arquitectónico del sistema está justamente en *cómo se reparten las responsabilidades entre esas unidades* y en las fronteras entre ellas (en particular, el aislamiento del dominio fiscal).
+
+Las nueve unidades son: (1) Aplicación Web (SPA), (2) API de Aplicación, (3) Servicio de Facturación Fiscal, (4) Procesador Asíncrono (Workers), (5) Identity Provider, (6) Broker de Mensajería, (7) Base de Datos Transaccional, (8) Almacén de Auditoría append-only y (9) Almacén de Documentos Fiscales.
+
+Esta separación no es cosmética: responde directamente a los drivers. El **Servicio de Facturación Fiscal** se aísla como contenedor propio para mantener el dominio fiscal dentro del sistema y fuera del alcance del motor de automatización (REST-05, sección 3.4) y para poder endurecer su seguridad de forma independiente (QA-01). El **Almacén de Auditoría** es un contenedor separado, append-only, porque RF-05 exige un log inmutable distinto del almacenamiento transaccional. El **Procesador Asíncrono** y el **Broker de Mensajería** materializan el patrón *outbox* + procesamiento asíncrono que resuelve la tensión seguridad/rendimiento de QS-01/QS-04 y la idempotencia de RF-06/QS-06. El **Identity Provider** externaliza autenticación/autorización multi-tenant (RF-04, REST-03). El stack se apoya en componentes gratuitos u open-source (React, ASP.NET Core, Keycloak, RabbitMQ, MinIO) y en **SQL Server** como motor de datos —cubierto por su edición gratuita (Express/Developer) o por licenciamiento existente del equipo—, lo que mantiene el costo acotado a la restricción de presupuesto REST-06.
+
+> **Nota:** "Contenedor" en C4 no significa Docker; designa cualquier unidad de ejecución o almacenamiento con frontera propia. La vista de despliegue físico (nodos, infraestructura) corresponde a la sección 7.4.
 
 #### 7.2.2 Diagrama
 
-![Vista de estructura interna](../diagramas/estructura-interna.png)
-*Figura 2 — Vista de estructura interna del sistema [Nombre]*
+![Vista de estructura interna](../diagramas/c4-contenedores.png)
+*Figura 3 — Vista de estructura interna (C4 nivel 2 — Contenedores) del sistema SmartBilling Connect. Código fuente en `/diagramas/c4-contenedores.mmd`.*
+
+**Consistencia con la vista de contexto (7.1).** Los mismos actores y sistemas externos de la Figura 2 reaparecen aquí en los bordes, con idéntico nivel de confianza y protocolo: los usuarios internos (🟢) entran por HTTPS; el Motor de Automatización (🟠) entrega la preventa por REST/HTTPS autenticado e idempotente y **no cruza al dominio fiscal**; Meta y TikTok (🔴) solo tocan al motor por webhook REST; la API de Hacienda (🔵) intercambia XML firmado sobre HTTPS y devuelve el estado; el Servicio de Correo (⚪) recibe SMTP/API y entrega al Cliente Final. Lo que la vista de contexto trataba como una caja negra ("SmartBilling Connect") se abre aquí en sus nueve contenedores, sin añadir ni quitar relaciones externas: ninguna dependencia externa nueva aparece y ninguna del contexto desaparece.
 
 #### 7.2.3 Descripción de elementos
 
 | Elemento | Tipo | Responsabilidad | Tecnología | Interfaces expuestas | Dependencias |
 |---|---|---|---|---|---|
-| [Nombre] | Contenedor / Componente / Módulo | [Qué hace] | [Stack tecnológico] | [API REST en /api/v1, cola SQS, etc.] | [Qué otros elementos necesita] |
+| **Aplicación Web (SPA)** | Contenedor (frontend) | Interfaz de back-office para usuarios internos: gestión de clientes, cotizaciones, preventas, emisión y monitoreo. No contiene lógica fiscal. | React + TypeScript | UI web sobre HTTPS | API de Aplicación (REST), Identity Provider (login OIDC) |
+| **API de Aplicación** | Contenedor (servicio) | Núcleo aplicativo (monolito modular): CRM/clientes, cotizaciones, preventas, productos y orquestación del flujo. Único punto de entrada del handoff de preventa. Escribe dominio + eventos en la tabla *outbox* en la misma transacción. | ASP.NET Core 8 (C#) | REST/JSON `/api/v1` sobre HTTPS (Bearer JWT); endpoint de handoff de preventa | BD Transaccional (SQL, ADO.NET/TLS), Servicio de Facturación Fiscal (REST interno), Identity Provider (validación JWT) |
+| **Servicio de Facturación Fiscal** | Contenedor (servicio) | Dominio fiscal aislado: genera el XML, aplica firma XADES-EPES, gestiona la máquina de estados del comprobante y toda la comunicación con Hacienda. Fuente del estado interno `pendiente_validacion_hacienda`. | ASP.NET Core 8 (C#) | REST/HTTPS interno (consumido por la API); consumidor/productor AMQP | BD Transaccional (SQL), Almacén de Documentos (S3), Broker (AMQP), API Hacienda (XML/HTTPS) |
+| **Procesador Asíncrono (Workers)** | Contenedor (servicio background) | Relay del *outbox* a eventos, reintentos con backoff/circuit breaker, envío de notificaciones y escritura del log de auditoría. Garantiza idempotencia por `event_id`. | .NET Worker Service (BackgroundService) | Consumidor AMQP; procesos programados | Broker (AMQP), BD Transaccional (lee outbox), Almacén de Auditoría (insert-only), Servicio de Correo (SMTP/API) |
+| **Identity Provider** | Contenedor (servicio) | Autenticación y autorización multi-tenant: OIDC/OAuth2, emisión y validación de JWT, RBAC por rol y resolución de `tenant_id`. | Keycloak | OIDC / OAuth2 / JWKS sobre HTTPS | BD propia de Keycloak (interna) |
+| **Broker de Mensajería** | Contenedor (infraestructura) | Transporte asíncrono de eventos de dominio; desacopla emisión fiscal, notificación y auditoría del hilo de request. Habilita reintentos y orden. | RabbitMQ | AMQP (colas/exchanges) | — |
+| **Base de Datos Transaccional** | Contenedor (almacenamiento) | Persistencia transaccional multi-tenant con aislamiento por `tenant_id`: tenants, clientes, cotizaciones, facturas y tabla *outbox*. | SQL Server | SQL (ADO.NET/TLS) | — |
+| **Almacén de Auditoría** | Contenedor (almacenamiento) | Log append-only e inmutable de acciones y transacciones fiscales; nadie lo modifica tras escribir (RF-05, invariante 6 de 1.6). | SQL Server (esquema append-only / insert-only) | SQL insert-only | — |
+| **Almacén de Documentos Fiscales** | Contenedor (almacenamiento) | Conservación de XML/PDF de comprobantes con integridad demostrable durante ≥5 años (REST-02). | MinIO (compatible S3) | API S3 sobre HTTPS | — |
+| **Motor de Automatización** *(externo)* | Sistema externo | Capa de captación social: responde/guía en redes y entrega preventas. No participa del dominio fiscal (REST-05). | Fuera del sistema | — | API de Aplicación (handoff REST) |
+| **API Ministerio de Hacienda CR** *(externo)* | Sistema externo | Autoridad fiscal: valida el comprobante y define su estado aceptado/rechazado. | Fuera del sistema | XML sobre HTTPS | — |
+| **Servicio de Correo Electrónico** *(externo)* | Sistema externo | Entrega comprobantes y notificaciones al cliente final; nunca es fuente de verdad del estado fiscal. | Fuera del sistema | SMTP / API | — |
 
 ---
 
