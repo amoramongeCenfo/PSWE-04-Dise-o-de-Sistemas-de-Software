@@ -599,7 +599,7 @@ El grupo se compromete a respetar los siguientes principios durante todo el dise
 #### 7.1.1 Fronteras de confianza
 
 ![Vista de Fronteras de Confianza](../diagramas/c4-contexto-confianza.png)
-*Figura 2 — Vista de contexto del sistema SmartBilling Connect*
+*Figura 3 — Fronteras de confianza del sistema SmartBilling Connect*
 
 No todos los actores y sistemas externos tienen el mismo nivel de confianza, y esa distinción —no solo el diagrama— guía decisiones de seguridad, validación e idempotencia. Se clasifican así:
 
@@ -640,7 +640,7 @@ Esta separación no es cosmética: responde directamente a los drivers. El **Ser
 #### 7.2.2 Diagrama
 
 ![Vista de estructura interna](../diagramas/c4-contenedores.png)
-*Figura 3 — Vista de estructura interna (C4 nivel 2 — Contenedores) del sistema SmartBilling Connect. Código fuente en `/diagramas/c4-contenedores.mmd`.*
+*Figura 4 — Vista de estructura interna (C4 nivel 2 — Contenedores) del sistema SmartBilling Connect. Código fuente en `/diagramas/c4-contenedores.mmd`.*
 
 **Consistencia con la vista de contexto (7.1).** Los mismos actores y sistemas externos de la Figura 2 reaparecen aquí en los bordes, con idéntico nivel de confianza y protocolo: los usuarios internos (🟢) entran por HTTPS; el Motor de Automatización (🟠) entrega la preventa por REST/HTTPS autenticado e idempotente y **no cruza al dominio fiscal**; Meta y TikTok (🔴) solo tocan al motor por webhook REST; la API de Hacienda (🔵) intercambia XML firmado sobre HTTPS y devuelve el estado; el Servicio de Correo (⚪) recibe SMTP/API y entrega al Cliente Final. Lo que la vista de contexto trataba como una caja negra ("SmartBilling Connect") se abre aquí en sus nueve contenedores, sin añadir ni quitar relaciones externas: ninguna dependencia externa nueva aparece y ninguna del contexto desaparece.
 
@@ -672,20 +672,27 @@ Esta separación no es cosmética: responde directamente a los drivers. El **Ser
 >
 > **Instrucciones:** Incluí un diagrama de secuencia por cada flujo crítico. Para el Avance 2, incluí al menos los 2 flujos más importantes. Para la Entrega final, cubrí el camino feliz Y al menos un camino de error o excepción por flujo. Cada diagrama debe tener título, los participantes claramente identificados y las llamadas etiquetadas con el método o mensaje.
 
-#### Flujo 1 — [Nombre del flujo, ej. "Autenticación de usuario"]
+Los dos flujos seleccionados son los más importantes del sistema porque cubren, entre ambos, el driver central del dominio (RF-01 — emisión fiscal) y el driver diferenciador del producto (RF-02/RF-06 — captación social con handoff idempotente), y porque ejercitan los contenedores y las fronteras de confianza definidos en 7.1 y 7.2.
 
-![Diagrama de secuencia — Flujo 1](../diagramas/secuencia-flujo1.png)
-*Figura 3 — [Nombre del flujo]*
+#### Flujo 1 — Emisión de factura electrónica
 
-**Descripción:** [Párrafo que narra el flujo, los actores involucrados, las decisiones que se toman y cómo se maneja el caso de error]
+![Diagrama de secuencia — Emisión de factura electrónica](../diagramas/secuencia-emision-factura.png)
+*Figura 5 — Secuencia: emisión de factura electrónica, camino feliz y degradación ante indisponibilidad de Hacienda. Código fuente en `/diagramas/secuencia-emision-factura.mmd`.*
 
-**Escenarios de calidad que este flujo valida:** [Referencias a QS-XX de la sección 4]
+**Descripción:** El flujo inicia cuando un usuario interno (Asistente Administrativo o Vendedor) solicita emitir una factura desde una cotización aprobada. La SPA envía la solicitud a la API de Aplicación con su JWT; la API valida token, rol y `tenant_id` contra el Identity Provider (ningún dato fiscal se toca sin esa validación — QS-01). La decisión de diseño clave ocurre en el paso 5: la factura (estado `emitida_local`) y el evento outbox `emitir_comprobante` se escriben **en la misma transacción**, de modo que el evento de emisión queda persistido de forma durable *antes* de responder 202 al usuario (patrón *outbox*, QS-04); la emisión fiscal nunca bloquea el hilo de request. El Procesador Asíncrono releva el outbox al Broker y el Servicio de Facturación Fiscal —único contenedor que habla con Hacienda— verifica idempotencia por `event_id` (un reintento interno no genera segunda factura — QS-06), genera el XML, aplica la firma XADES-EPES, archiva el documento en el Almacén de Documentos y lo envía a Hacienda. **Manejo de error:** si Hacienda responde timeout o 5xx, el comprobante pasa al estado fiscal legítimo `pendiente_validacion_hacienda` y entra a la cola de reintentos con backoff y circuit breaker; el usuario solo percibe el cambio de estado (≤ 2 s de degradación) y al restaurarse el servicio la cola se procesa en orden FIFO sin intervención manual ni pérdida de documentos (QS-02). En ambas ramas, el resultado termina en el Almacén de Auditoría (entrada append-only con actor, tenant, timestamp, número de comprobante, estado y hash del XML) y el comprobante se entrega al cliente final por el Servicio de Correo, que nunca es fuente de verdad del estado fiscal.
+
+**Escenarios de calidad que este flujo valida:** QS-01 (autorización por tenant en el punto de entrada), QS-02 (degradación y recuperación ante fallo de Hacienda), QS-04 (auditoría persistida en outbox antes de responder, ≤ 80 ms), QS-06 (idempotencia por `event_id` ante reintentos internos de emisión).
 
 ---
 
-#### Flujo 2 — [Nombre del flujo]
+#### Flujo 2 — Handoff de preventa desde el Motor de Automatización
 
-*(Repetir estructura para cada flujo adicional)*
+![Diagrama de secuencia — Handoff de preventa](../diagramas/secuencia-handoff-preventa.png)
+*Figura 6 — Secuencia: handoff idempotente de preventa desde el Motor de Automatización. Código fuente en `/diagramas/secuencia-handoff-preventa.mmd`.*
+
+**Descripción:** El flujo inicia fuera del sistema: un cliente final envía un mensaje con intención de compra por Instagram/WhatsApp o TikTok (canales no confiables), el canal lo entrega por webhook al Motor de Automatización, y este responde y guía al cliente de forma automática dentro de su capa social (QS-03). Cuando detecta intención de compra, el motor ejecuta el **handoff**: un POST al endpoint de preventas de la API de Aplicación, autenticado con credencial de integración propia (OAuth2 client, sin sesión de usuario humano) y acompañado de una `Idempotency-Key`. El Identity Provider emite un token con alcance de integración que **no tiene acceso al dominio fiscal** (REST-05, sección 3.4). La API consulta la clave de idempotencia y decide: si la clave es nueva, crea la preventa, registra la clave y escribe el evento outbox `preventa_recibida` en una única transacción, respondiendo 201; **manejo del caso de error/duplicado:** si la clave ya fue procesada —reejecución de un workflow del motor, reintento por timeout— responde 200 con el resultado previo sin ejecutar ningún efecto nuevo, garantizando exactamente un efecto de negocio por evento (QS-06). El Procesador Asíncrono releva el outbox, publica el evento y escribe la entrada de auditoría append-only con la identidad de la integración (RF-05). El dominio fiscal no avanza en ningún punto de este flujo: la preventa queda visible en la SPA y solo una acción interna de un vendedor la convierte en cotización o factura, lo que garantiza que un fallo del motor no tenga impacto fiscal.
+
+**Escenarios de calidad que este flujo valida:** QS-06 (deduplicación por clave de idempotencia con exactamente un efecto de negocio), QS-03 (la capa social responde fuera del camino crítico del sistema; el handoff es asíncrono respecto de la conversación), QS-01 (credencial de integración autenticada y acotada por alcance), además de los drivers RF-05 (auditoría del actor no humano) y REST-05 (el motor no participa del dominio fiscal).
 
 ---
 
