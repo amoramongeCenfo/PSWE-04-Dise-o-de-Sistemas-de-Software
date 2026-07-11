@@ -14,9 +14,10 @@ Plataforma de facturación electrónica inteligente para PYMES que venden por re
 | **Nombre del sistema** | SmartBilling Connect |
 | **Grupo** | D |
 | **Integrantes** | Edgar Jacob (117660514), Brandon Garita (207180701), Alejandro Mora (111890536) |
+| **URL del repositorio** | https://github.com/amoramongeCenfo/PSWE-04-Dise-o-de-Sistemas-de-Software |
 | **Docente** | Juan Mauricio Leandro Jiménez |
 | **Cuatrimestre** | 2026 — 02 |
-| **Hito actual** | Avance 1 (S07) — versión 0.2 |
+| **Hito actual** | Avance 2 (S11) — versión 0.3 |
 
 ---
 
@@ -53,9 +54,9 @@ Plataforma de facturación electrónica inteligente para PYMES que venden por re
 
 ## Hitos del curso
 
-| Hito | Semana | Estado |
-|---|---|---|
-| Propuesta | S03 | Completado |
-| Avance 1 | S07 | En curso |
-| Avance 2 | S11 | Pendiente |
-| Entrega final | S14 | Pendiente |
+| Hito | Semana | Estado | Documento |
+|---|---|---|---|
+| Propuesta | S03 | Aprobado | [propuesta.md](docs/propuesta.md) |
+| Avance 1 | S07 | Aprobado | [propuesta.md](docs/propuesta.md) — Bloques 1-2 y sección 7.1 |
+| Avance 2 | S11 | En revisión | [propuesta.md](docs/propuesta.md) — Secciones 7.2-7.3, 8, 9 y 10.1 |
+| Entrega final | S14 | Pendiente | — |
