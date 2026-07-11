@@ -729,29 +729,32 @@ Esta separación no es cosmética: responde directamente a los drivers. El **Ser
 
 ## 8. Estilo arquitectónico
 
-> **Instrucciones:** Documentá el estilo o los estilos arquitectónicos que usás en el sistema (capas, microservicios, event-driven, pipe-and-filter, CQRS, hexagonal, etc.). Un sistema puede combinar estilos — documentá cómo. Para cada estilo, explicá: por qué es el más adecuado para este sistema, cuáles son sus trade-offs en este contexto específico, y qué alternativas consideraron y rechazaron. La justificación debe conectar directamente con los drivers de la sección 3 y los escenarios de calidad de la sección 4.
+> El estilo arquitectónico de SmartBilling Connect responde a una tensión central identificada en los drivers de la sección 3: el sistema requiere cuatro subsistemas con fronteras claras (facturación fiscal, integración social, automatización de workflows e identidad/acceso), interoperabilidad con al menos tres ecosistemas externos (Hacienda, Meta, TikTok) y atributos de calidad exigentes en seguridad y disponibilidad — pero debe ser construido y operado por un equipo de 3 personas con presupuesto limitado (REST-06). La selección del estilo prioriza satisfacer los atributos de calidad QA-01 a QA-05 dentro de esas restricciones, y se evalúa contra dos alternativas que fueron descartadas con sus respectivos trade-offs.
 
 ### 8.1 Estilo(s) adoptado(s)
 
 | Estilo | Aplicación en el sistema | Justificación |
 |---|---|---|
-| [Nombre del estilo] | [Dónde y cómo se aplica] | [Por qué este estilo responde a los drivers del sistema] |
+| Monolito Modular | Estructura general de SmartBilling Connect. Se despliega como una unidad ejecutable única, pero internamente se organiza en módulos con fronteras explícitas alineados a contextos de dominio: Core de Facturación, Integración Social, Motor de Automatización, Identidad y Acceso, Auditoría y Gateway/API. Cada módulo expone una interfaz pública y mantiene su lógica y datos encapsulados. | Responde a la tensión entre la necesidad de subsistemas desacoplados (RF-01 a RF-05, QA-05) y la restricción de equipo reducido (REST-06). Ofrece la separación lógica necesaria sin el overhead operacional de múltiples servicios desplegables. Un solo artefacto = un pipeline CI/CD, un proceso a monitorear, un set de logs. Viable con 3 personas. |
+| Comunicación basada en eventos (complementario) | Comunicación asíncrona entre módulos internos. Los webhooks de redes sociales, la ejecución de workflows y el registro de auditoría se procesan mediante eventos publicados en un bus de eventos interno (inicialmente in-process, migrable a broker externo si la escala lo requiere). | Responde a QA-02 (Disponibilidad) y QA-04 (Rendimiento): un fallo en el módulo de automatización no bloquea la emisión de facturas. Los mensajes de redes sociales se encolan y procesan sin bloquear el hilo principal. Habilita RF-03 al permitir que eventos de negocio disparen flujos automatizados de forma desacoplada. |
 
 ### 8.2 Alternativas consideradas y rechazadas
 
 | Alternativa | Por qué se consideró | Por qué se rechazó |
 |---|---|---|
-| [Estilo alternativo 1] | [Qué ventajas ofrecía] | [Qué desventaja o incompatibilidad con los drivers la descartó] |
-| [Estilo alternativo 2] | | |
+| Microservicios | SmartBilling Connect tiene subsistemas con fronteras claras (facturación, integración social, automatización, identidad). Cada uno podría desplegarse como servicio independiente con su propia base de datos, permitiendo escalamiento y despliegue independientes. | Complejidad operacional vs. equipo (REST-06): un equipo de 3 personas tendría que gestionar 5-6 servicios, un message broker, un API gateway, service discovery, distributed tracing y orquestación de contenedores. Costo de infraestructura (REST-06): un cluster de Kubernetes supera el presupuesto del proyecto. Consistencia de datos fiscales (QA-01, REST-01): las transacciones fiscales requieren consistencia fuerte, lo que en microservicios exige sagas o two-phase commit. Escala prematura: los volúmenes iniciales (cientos de facturas/día) no justifican la distribución. |
+| Arquitectura en Capas (N-Tier) tradicional | Es el patrón más conocido, simple de implementar y con baja curva de aprendizaje. Consistente con KISS y la restricción de equipo (REST-06). | Sin fronteras de dominio (QA-05): en capas horizontales, la lógica de facturación, redes sociales y automatización coexisten en la misma capa de negocio sin separación. Interoperabilidad difusa (QA-03): sin módulos con fronteras claras, las integraciones externas se dispersan sin lugar natural para adaptadores. Solo comunicación síncrona: no hay mecanismo natural para procesamiento asíncrono de webhooks (RF-02) o ejecución de workflows en segundo plano (RF-03), que son requerimientos core del sistema. |
 
 ### 8.3 Análisis de trade-offs del estilo elegido
 
-> **Instrucciones:** Todo estilo arquitectónico tiene compromisos. Documentá los trade-offs del estilo elegido en el contexto específico de este sistema. Conectá cada trade-off con un escenario de calidad de la sección 4.
+> Todo estilo arquitectónico tiene compromisos. Los siguientes trade-offs son específicos de SmartBilling Connect y su contexto de drivers.
 
 | Trade-off | Qué se gana | Qué se sacrifica | Escenario afectado |
 |---|---|---|---|
-| [Descripción del trade-off] | [Beneficio concreto] | [Costo concreto] | [QS-XX] |
-
+| Despliegue único vs. escalamiento selectivo | Un solo artefacto desplegable: un pipeline CI/CD, un proceso a monitorear, un set de logs. Operación viable con 3 personas (REST-06). Menor costo de infraestructura. | Si el módulo de Integración Social recibe un pico de carga por un evento viral en TikTok, hay que escalar todo el monolito, no solo ese módulo. | QA-02 (Disponibilidad) — se mitiga con réplicas del monolito detrás de un balanceador. QA-04 (Rendimiento) — se mitiga con procesamiento asíncrono de eventos sociales. |
+| Consistencia fuerte vs. rendimiento en escrituras | Las transacciones fiscales (emitir factura + registrar auditoría) se ejecutan en una transacción de BD, garantizando que nunca exista una factura sin su registro de auditoría. Cumple REST-01 y RF-05 sin complejidad de sagas. | Las escrituras transaccionales son más lentas que las eventuales. Bajo carga alta, las transacciones de facturación podrían competir por locks con las de auditoría. | QA-04 (Rendimiento) tensiona con QA-01 (Seguridad/Integridad) — se prioriza la integridad fiscal. Objetivo menor a 5 segundos incluyendo respuesta de Hacienda. |
+| Fronteras lógicas vs. fronteras físicas | Los módulos comparten proceso y memoria, eliminando overhead de serialización y comunicación de red. Llamadas entre módulos en nanosegundos, no milisegundos. | Las fronteras entre módulos son convenciones de equipo, no barreras del compilador ni de la red. Un desarrollador puede acceder directamente a tablas de otro módulo, violando el encapsulamiento. | QA-05 (Modificabilidad) — se mitiga con revisión de código, tests de dependencias entre módulos y convenciones de estructura de carpetas. La estructura modular facilita extracción futura a microservicio. |
+| Bus de eventos in-process vs. broker externo | Sin dependencia de infraestructura adicional (RabbitMQ, Kafka). Menor complejidad operacional. Eventos procesados en el mismo proceso con baja latencia. | Si el proceso se cae, los eventos en tránsito se pierden. No hay persistencia de eventos fuera de la BD. No hay visibilidad nativa de colas ni dead letter queues. | QA-02 (Disponibilidad) — se mitiga usando transacciones de BD para eventos críticos (auditoría) y fire-and-forget para no críticos. Si el volumen crece, el bus se reemplaza por broker externo sin cambiar interfaces (QA-05). |
 ---
 
 ## 9. Registro de decisiones — ADRs
