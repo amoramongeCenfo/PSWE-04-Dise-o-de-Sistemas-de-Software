@@ -23,7 +23,7 @@
 |---|---|---|---|---|
 | 0.1 | 2026-05-23 | Propuesta (S03) | Creación del documento inicial | Edgar Jacob, Brandon Garita, Alejandro Mora |
 | 0.2 | 2026-06-12 | Avance 1 (S07) | Descripción del sistema, alcance, stakeholders, drivers arquitectónicos, escenarios de calidad y Vista de Contexto C4 | Edgar Jacob, Brandon Garita, Alejandro Mora |
-| 0.3 | 2026-07-04 | Avance 2 (S11) | Vista de estructura interna C4 nivel 2 (contenedores) con justificación de notación, diagrama y tabla descriptiva, y definición del stack tecnológico (.NET 8 / ASP.NET Core, SQL Server, Keycloak, RabbitMQ, MinIO); vista de comportamiento con diagramas de secuencia de los flujos críticos; estilo(s) arquitectónico(s) adoptado(s) con alternativas y análisis de trade-offs; y registro de decisiones (ADRs). | Edgar Jacob, Brandon Garita, Alejandro Mora |
+| 0.3 | 2026-07-04 | Avance 2 (S11) | Vista de estructura interna C4 nivel 2 (contenedores) con justificación de notación, diagrama y tabla descriptiva, y definición del stack tecnológico (.NET 8 / ASP.NET Core, SQL Server, Keycloak, RabbitMQ, MinIO); vista de comportamiento con diagramas de secuencia de los flujos críticos; estilo(s) arquitectónico(s) adoptado(s) con alternativas y análisis de trade-offs;  registro de decisiones (ADRs); y primer componente con diseño detallado. | Edgar Jacob, Brandon Garita, Alejandro Mora |
 | 1.0 | [fecha] | Entrega final (S14) | Documento completo | [nombres] |
 
 ---
@@ -759,73 +759,110 @@ Esta separación no es cosmética: responde directamente a los drivers. El **Ser
 
 ## 9. Registro de decisiones — ADRs
 
-> **Instrucciones:** Un ADR documenta una decisión arquitectónica significativa — una que, si se toma mal o se cambia después, tiene consecuencias costosas. No todas las decisiones merecen un ADR — solo las que involucran trade-offs, alternativas reales y consecuencias duraderas. Ejemplos: elección de base de datos, protocolo de comunicación entre servicios, mecanismo de autenticación, estrategia de manejo de errores, modelo de datos principal. Se requieren **mínimo 3 ADRs**. Cada ADR vive en un archivo separado en `/decisiones/ADR-XXX-titulo.md` y se referencia desde aquí.
->
-> **Estado posible:** Propuesta | Aceptada | Superada | Deprecada
-
 ---
 
-### ADR-001 — [Título de la decisión]
+### ADR-001 — Aislamiento del dominio fiscal en un servicio dedicado (Servicio de Facturación Fiscal)
+
+> Documento completo: [`/decisiones/ADR-001-aislamiento-dominio-fiscal.md`](../decisiones/ADR-001-aislamiento-dominio-fiscal.md)
 
 | Campo | Detalle |
 |---|---|
-| **Estado** | [Aceptada] |
-| **Fecha** | [YYYY-MM-DD] |
-| **Autores** | [Nombres] |
-
-**Contexto**
-> Describí la situación que requirió tomar esta decisión. ¿Qué problema estabas resolviendo? ¿Qué constraints existían? ¿Qué sabías y qué no sabías en el momento de decidir?
-
-[Completar]
-
-**Decisión**
-> La decisión tomada, enunciada de forma clara y directa. "Decidimos usar X porque Y."
-
-[Completar]
-
-**Alternativas consideradas**
-
-| Alternativa | Ventajas | Desventajas | Por qué se descartó |
-|---|---|---|---|
-| [Opción A] | | | |
-| [Opción B] | | | |
-
-**Consecuencias positivas**
-- [Qué mejora o se habilita con esta decisión]
-- [Qué drivers o escenarios de calidad satisface]
-
-**Consecuencias negativas**
-- [Qué se complica o qué deuda introduce]
-- [Qué escenarios de calidad se ven afectados negativamente]
-
-**Revisión requerida si:** [Condición que haría que esta decisión deba revisarse — ej. "Si el volumen de transacciones supera 10k/día, esta decisión debe reevaluarse"]
+| **Estado** | Aceptada |
+| **Fecha** | 2026-07-04 |
+| **Autores** | Edgar Jacob, Brandon Garita, Alejandro Mora |
+| **Drivers / escenarios que responde** | REST-05, QA-01, RF-01, QS-05 |
 
 ---
 
-### ADR-002 — [Título de la decisión]
+### ADR-002 — Patrón Transactional Outbox con procesamiento asíncrono para auditoría e idempotencia
 
-*(Repetir estructura)*
+> Documento completo: [`/decisiones/ADR-002-outbox-transaccional-asincrono.md`](../decisiones/ADR-002-outbox-transaccional-asincrono.md)
+
+| Campo | Detalle |
+|---|---|
+| **Estado** | Aceptada |
+| **Fecha** | 2026-07-04 |
+| **Autores** | Edgar Jacob, Brandon Garita, Alejandro Mora |
+| **Drivers / escenarios que responde** | RF-05, RF-06, QS-01, QS-03, QS-04, QS-06 |
 
 ---
 
-### ADR-003 — [Título de la decisión]
+### ADR-003 — Aislamiento multi-tenant mediante `tenant_id` centralizado en la capa de autorización
 
-*(Repetir estructura. Agregar ADR-004, ADR-005, etc. según las decisiones del proyecto)*
+> Documento completo: [`/decisiones/ADR-003-estrategia-multi-tenancy.md`](../decisiones/ADR-003-estrategia-multi-tenancy.md)
+
+| Campo | Detalle |
+|---|---|
+| **Estado** | Aceptada |
+| **Fecha** | 2026-07-04 |
+| **Autores** | Edgar Jacob, Brandon Garita, Alejandro Mora |
+| **Drivers / escenarios que responde** | REST-03, REST-06, QS-01, QA-01 |
 
 ---
+
+
+
 
 # BLOQUE 5 — DISEÑO DETALLADO
 *Hito: Entrega final (S14)*
 
----
-
 ## 10. Diseño detallado de componentes
 
-> **Instrucciones:** Seleccioná los **3 componentes más críticos** del sistema — los que implementan la lógica más importante, los que tienen mayor impacto en los atributos de calidad, o los que toman las decisiones de diseño más interesantes. Para cada componente, producí los cuatro artefactos de diseño siguientes. La trazabilidad desde los casos de uso hasta el diseño es obligatoria — cada componente debe poder rastrearse hasta al menos un caso de uso de la sección 1.4.
+### Componente 1 — Servicio de Facturación Fiscal
+
+**Responsabilidad:** Genera el XML del comprobante electrónico, lo firma digitalmente (XADES-EPES), gestiona su máquina de estados y coordina el envío y la consulta de estado ante el Ministerio de Hacienda. Lo elegimos como el componente más crítico porque ahí vive toda la lógica que tiene consecuencia legal directa (RF-01). Además es la pieza que quedó aislada a propósito frente al motor de automatización (REST-05, ADR-001) y la que carga con los escenarios de calidad más exigentes del proyecto: QS-01, QS-02, QS-04, QS-05 y QS-06.
+
+**Trazabilidad:** Sección 1.4, casos de uso *"Emitir facturas electrónicas, validar información fiscal de clientes, reenviar comprobantes electrónicos, consultar estados tributarios, corregir errores operativos de facturación"* (Asistente administrativo) y *"convertir cotizaciones en facturas electrónicas"* (Vendedor / Ejecutivo comercial). Ambos apuntan al elemento **Servicio de Facturación Fiscal** descrito en la vista de estructura interna (sección 7.2.3).
+
+#### 10.1.1 Diagrama de clases de diseño
+
+![Diagrama de clases — Servicio de Facturación Fiscal](../diagramas/clases-servicio-facturacion-fiscal.png)
+*Figura N — Diagrama de clases de diseño: Servicio de Facturación Fiscal. Código fuente en `/diagramas/clases-servicio-facturacion-fiscal.mmd`.*
+
+Separamos el punto de entrada (`FiscalInvoiceController`, boundary) de la orquestación (`FiscalInvoiceService`, control) y de los detalles de infraestructura, cada uno detrás de su propia interfaz: `IXmlComprobanteBuilder` para construir el XML (intercambiable según la versión del esquema, pensando en QS-05), `ISignatureProvider` para la firma digital, `IHaciendaClient` para hablar con Hacienda (con su política de reintentos y circuit breaker) y `IComprobanteRepository` / `IOutboxWriter` para la parte de persistencia y outbox que se explica en ADR-002. `ComprobanteStateMachine` concentra las transiciones válidas del comprobante (Generado → Firmado → Enviado → Aceptado / Rechazado / PendienteValidacionHacienda) para que esa lógica no termine repartida por todo el servicio. Gracias a esta separación por interfaces, si Hacienda cambia el esquema el año que viene, en principio bastaría con reemplazar `XmlComprobanteBuilderV44` sin tocar `FiscalInvoiceService` ni el resto — que es más o menos lo que promete QS-05.
 
 ---
 
-### Componente 1 — [Nombre del componente]
+#### 10.1.2 Contratos de interfaz
+
+---
+
+| Método / Endpoint | Precondición | Postcondición | Excepciones |
+|---|---|---|---|
+| `Task<ComprobanteResult> FiscalInvoiceService.EmitirComprobanteAsync(ComprobanteRequest request, CancellationToken ct)` | `request.TenantId` corresponde a un tenant activo y resuelto por la capa de autorización (ADR-003); `request.Lineas` contiene al menos una línea con montos válidos (> 0). | El comprobante queda persistido con estado `Firmado` o `PendienteValidacionHacienda`; su evento de auditoría queda encolado de forma transaccional en el outbox (ADR-002) antes de retornar. | `ValidationException` si `request` no cumple las reglas de negocio mínimas; `TenantMismatchException` si el `TenantId` del request no coincide con el del contexto de autorización; `FiscalSignatureException` si la firma digital falla por certificado inválido o vencido. |
+| `Task<ComprobanteStatusDto> FiscalInvoiceService.ConsultarEstadoAsync(Guid comprobanteId, Guid tenantId)` | `comprobanteId` corresponde a un comprobante existente perteneciente a `tenantId`. | Retorna el estado actual del comprobante sin exponer datos de otro tenant. | `NotFoundException` si el comprobante no existe para ese `tenantId` (nunca revela si existe para otro tenant — QS-01). |
+| `string IXmlComprobanteBuilder.ConstruirXml(ComprobanteRequest request)` | `request` ya fue validado por `FiscalInvoiceService.ValidarRequest`. | Retorna un XML bien formado y conforme al esquema vigente del Ministerio de Hacienda. | `SchemaValidationException` si el XML resultante no valida contra el esquema XSD vigente. |
+| `byte[] ISignatureProvider.Firmar(string xmlContent, X509Certificate2 certificado)` | `certificado` es válido, no ha expirado y corresponde al tenant emisor. | Retorna el XML firmado digitalmente conforme al estándar XADES-EPES, listo para envío. | `CertificateExpiredException`; `InvalidCertificateException` si el certificado no corresponde al emisor declarado. |
+| `Task<HaciendaResponse> IHaciendaClient.EnviarComprobanteAsync(byte[] xmlFirmado, CancellationToken ct)` | `xmlFirmado` fue producido por un `ISignatureProvider` válido. | Retorna la respuesta de Hacienda (aceptado/rechazado) o agota la política de reintentos y propaga el fallo. | `TimeoutException` / `HttpRequestException` ante indisponibilidad de Hacienda (capturadas explícitamente para activar el camino `PendienteValidacionHacienda`, QS-02). |
+| `ComprobanteEstado ComprobanteStateMachine.Transicionar(ComprobanteEstado actual, ComprobanteEvento evento)` | La transición solicitada (`actual` + `evento`) existe en la tabla de transiciones válidas. | Retorna el nuevo estado válido; nunca dos actores concurrentes pueden aplicar transiciones inconsistentes sobre el mismo comprobante (control de concurrencia optimista en el repositorio). | `InvalidStateTransitionException` si la transición solicitada no es válida desde el estado actual. |
+
+#### 10.1.3 Análisis de robustez
+
+| Objeto | Tipo (Boundary / Control / Entity) | Responsabilidad |
+|---|---|---|
+| `FiscalInvoiceController` | Boundary | Punto de entrada REST interno consumido únicamente por la API de Aplicación; traduce el request HTTP a la llamada del servicio y el resultado a una respuesta HTTP. |
+| `ComprobanteRequest` / `ComprobanteResult` | Boundary (DTO) | Estructuras de datos que cruzan la frontera del componente hacia la API de Aplicación. |
+| `HaciendaHttpClient` | Boundary | Interfaz hacia el sistema externo (API del Ministerio de Hacienda); traduce llamadas del dominio a HTTP/XML y viceversa. |
+| `FiscalInvoiceService` | Control | Orquesta el flujo completo de emisión: valida, construye XML, firma, transiciona estado, persiste y encola auditoría. |
+| `ComprobanteStateMachine` | Control | Aplica las reglas de negocio que determinan qué transiciones de estado son válidas. |
+| `XmlComprobanteBuilderV44` | Control | Transforma los datos de la solicitud en el XML fiscal conforme al esquema vigente. |
+| `XadesEpesSignatureProvider` | Control | Aplica la operación criptográfica de firma digital sobre el XML construido. |
+| `Comprobante` | Entity | Representa el dato persistente central del dominio fiscal (estado, XML, hash de integridad, clave numérica). |
+| `ComprobanteSqlRepository` | Entity | Objeto de acceso a datos que lee y escribe el estado persistente de `Comprobante`. |
+| `OutboxWriter` | Entity | Objeto de acceso a datos que persiste el evento de auditoría en la tabla outbox dentro de la misma transacción (ADR-002). |
+
+#### 10.1.4 Diagrama de secuencia — flujo principal
+
+![Secuencia — Emisión de comprobante fiscal](../diagramas/secuencia-emision-comprobante-fiscal.png)
+*Figura N — Secuencia: emisión de comprobante fiscal, camino feliz y camino de error (timeout de Hacienda). Código fuente en `/diagramas/secuencia-emision-comprobante-fiscal.mmd`.*
+
+**Descripción:** La API de Aplicación llama a `FiscalInvoiceController`, que delega en `FiscalInvoiceService`. El servicio valida la solicitud, construye el XML, lo firma, pasa el comprobante a estado `Firmado` y lo guarda junto con su evento de auditoría en la misma transacción (el patrón outbox de ADR-002), devolviendo `202 Accepted` sin esperar a Hacienda. Por otro lado, el servicio envía el comprobante a Hacienda: si todo sale bien, Hacienda responde a tiempo y el comprobante pasa a `Aceptado`. Si Hacienda no responde o falla (timeout o HTTP 5xx sostenido, el caso que cubre QS-02), el comprobante pasa a `PendienteValidacionHacienda` y queda en cola para reintentarse en orden FIFO, sin que el usuario note más de los 2 segundos de degradación que permite ese mismo escenario.
+
+**Escenarios de calidad que este flujo valida:** QS-01 (autorización por tenant antes de cualquier operación), QS-02 (degradación controlada si Hacienda falla), QS-04 (auditoría transaccional vía outbox), QS-05 (el módulo de XML queda aislado detrás de una interfaz) y QS-06 (idempotencia de los reintentos).
+
+---
+
+### Componente 2 — [Nombre del componente]
 
 **Responsabilidad:** [Una oración que describe qué hace este componente y por qué es crítico para el sistema]
 
@@ -866,15 +903,44 @@ Esta separación no es cosmética: responde directamente a los drivers. El **Ser
 
 ---
 
-### Componente 2 — [Nombre del componente]
-
-*(Repetir la estructura 10.1.1 a 10.1.4)*
-
----
-
 ### Componente 3 — [Nombre del componente]
 
-*(Repetir la estructura 10.1.1 a 10.1.4)*
+**Responsabilidad:** [Una oración que describe qué hace este componente y por qué es crítico para el sistema]
+
+**Trazabilidad:** [Referencia a los casos de uso de la sección 1.4 que este componente soporta] → [Referencia al elemento en la vista de estructura interna, sección 7.2]
+
+#### 10.1.1 Diagrama de clases de diseño
+
+> **Instrucciones:** Este no es un diagrama de clases de análisis ni un modelo de dominio. Es el diseño: incluí métodos con firmas completas (nombre, parámetros, tipo de retorno), modificadores de acceso, relaciones de dependencia reales y las interfaces que el componente expone y consume. Mostrá cómo se aplican los patrones de diseño (sección 11) dentro de este componente.
+
+![Diagrama de clases — Componente 1](../diagramas/clases-componente1.png)
+*Figura N — Diagrama de clases de diseño: [Nombre del componente]*
+
+#### 10.1.2 Contratos de interfaz
+
+> **Instrucciones:** Para cada método o endpoint público del componente, documentá su contrato formal. Un contrato no es solo la firma — es la especificación de qué garantiza el método y qué exige de quien lo llama.
+
+| Método / Endpoint | Precondición | Postcondición | Excepciones |
+|---|---|---|---|
+| `[firma del método]` | [Qué debe ser verdad antes de llamarlo] | [Qué garantiza que será verdad después] | [Qué errores puede lanzar y bajo qué condición] |
+
+#### 10.1.3 Análisis de robustez
+
+> **Instrucciones:** Usá el análisis de robustez para verificar que el diseño del componente cubre correctamente la interacción entre la interfaz externa (boundary), la lógica de control (control) y los datos (entity). Identificá los objetos de cada tipo que participan en los flujos principales de este componente.
+
+| Objeto | Tipo (Boundary / Control / Entity) | Responsabilidad |
+|---|---|---|
+| [Nombre] | | |
+
+#### 10.1.4 Diagrama de secuencia — flujo principal
+
+> **Instrucciones:** Mostrá el flujo de mensajes entre los objetos identificados en el análisis de robustez para el caso de uso principal que este componente soporta. Incluí el camino feliz y al menos un camino de error significativo.
+
+![Secuencia — Componente 1, flujo principal](../diagramas/secuencia-comp1-principal.png)
+*Figura N — Secuencia: [Nombre del flujo principal de Componente 1]*
+
+![Secuencia — Componente 1, camino de error](../diagramas/secuencia-comp1-error.png)
+*Figura N — Secuencia: [Nombre del camino de error de Componente 1]*
 
 ---
 

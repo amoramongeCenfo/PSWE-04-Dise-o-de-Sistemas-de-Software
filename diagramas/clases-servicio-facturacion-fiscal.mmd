@@ -1,0 +1,136 @@
+classDiagram
+    direction LR
+
+    class FiscalInvoiceController {
+        <<Boundary>>
+        -IFiscalInvoiceService _service
+        +Task~IActionResult~ Post(ComprobanteRequest request) IActionResult
+        +Task~IActionResult~ GetEstado(Guid comprobanteId, Guid tenantId) IActionResult
+    }
+
+    class IFiscalInvoiceService {
+        <<interface>>
+        +Task~ComprobanteResult~ EmitirComprobanteAsync(ComprobanteRequest request, CancellationToken ct)
+        +Task~ComprobanteStatusDto~ ConsultarEstadoAsync(Guid comprobanteId, Guid tenantId)
+    }
+
+    class FiscalInvoiceService {
+        <<Control>>
+        -IXmlComprobanteBuilder _xmlBuilder
+        -ISignatureProvider _signatureProvider
+        -IHaciendaClient _haciendaClient
+        -IComprobanteRepository _repository
+        -IOutboxWriter _outboxWriter
+        -ComprobanteStateMachine _stateMachine
+        +Task~ComprobanteResult~ EmitirComprobanteAsync(ComprobanteRequest request, CancellationToken ct) ComprobanteResult
+        +Task~ComprobanteStatusDto~ ConsultarEstadoAsync(Guid comprobanteId, Guid tenantId) ComprobanteStatusDto
+        -void ValidarRequest(ComprobanteRequest request) void
+        -Task~Comprobante~ PersistirYEncolarAsync(Comprobante comprobante, OutboxEvent evento) Comprobante
+    }
+
+    class ComprobanteStateMachine {
+        <<Control>>
+        +ComprobanteEstado Transicionar(ComprobanteEstado actual, ComprobanteEvento evento) ComprobanteEstado
+        -void ValidarTransicion(ComprobanteEstado actual, ComprobanteEvento evento) void
+    }
+
+    class IXmlComprobanteBuilder {
+        <<interface>>
+        +string ConstruirXml(ComprobanteRequest request)
+    }
+
+    class XmlComprobanteBuilderV44 {
+        -void ValidarEsquema(XDocument documento) void
+        +string ConstruirXml(ComprobanteRequest request) string
+    }
+
+    class ISignatureProvider {
+        <<interface>>
+        +byte[] Firmar(string xmlContent, X509Certificate2 certificado)
+    }
+
+    class XadesEpesSignatureProvider {
+        +byte[] Firmar(string xmlContent, X509Certificate2 certificado) byte[]
+        -void ValidarCertificado(X509Certificate2 certificado) void
+    }
+
+    class IHaciendaClient {
+        <<interface>>
+        +Task~HaciendaResponse~ EnviarComprobanteAsync(byte[] xmlFirmado, CancellationToken ct)
+        +Task~HaciendaEstado~ ConsultarEstadoAsync(string claveNumerica)
+    }
+
+    class HaciendaHttpClient {
+        -HttpClient _httpClient
+        -IAsyncPolicy _retryPolicy
+        +Task~HaciendaResponse~ EnviarComprobanteAsync(byte[] xmlFirmado, CancellationToken ct) HaciendaResponse
+        +Task~HaciendaEstado~ ConsultarEstadoAsync(string claveNumerica) HaciendaEstado
+    }
+
+    class IComprobanteRepository {
+        <<interface>>
+        +Task GuardarAsync(Comprobante comprobante, IDbTransaction tx)
+        +Task~Comprobante~ ObtenerPorIdAsync(Guid id, Guid tenantId)
+    }
+
+    class ComprobanteSqlRepository {
+        -DbContext _context
+        +Task GuardarAsync(Comprobante comprobante, IDbTransaction tx) Task
+        +Task~Comprobante~ ObtenerPorIdAsync(Guid id, Guid tenantId) Comprobante
+    }
+
+    class IOutboxWriter {
+        <<interface>>
+        +Task EncolarEventoAsync(OutboxEvent evento, IDbTransaction tx)
+    }
+
+    class OutboxWriter {
+        +Task EncolarEventoAsync(OutboxEvent evento, IDbTransaction tx) Task
+    }
+
+    class Comprobante {
+        <<Entity>>
+        +Guid Id
+        +Guid TenantId
+        +TipoComprobante Tipo
+        +ComprobanteEstado Estado
+        +string ClaveNumerica
+        +string XmlContent
+        +string HashIntegridad
+        +DateTime FechaEmision
+        +void MarcarComoFirmado(byte[] xmlFirmado) void
+        +void ActualizarEstado(ComprobanteEstado nuevoEstado) void
+    }
+
+    class ComprobanteRequest {
+        <<Boundary DTO>>
+        +Guid TenantId
+        +Guid ClienteId
+        +TipoComprobante Tipo
+        +List~LineaDetalle~ Lineas
+    }
+
+    class ComprobanteResult {
+        <<Boundary DTO>>
+        +Guid ComprobanteId
+        +ComprobanteEstado Estado
+        +string ClaveNumerica
+    }
+
+    FiscalInvoiceController ..> IFiscalInvoiceService : usa
+    IFiscalInvoiceService <|.. FiscalInvoiceService : implementa
+    FiscalInvoiceService --> IXmlComprobanteBuilder : depende
+    FiscalInvoiceService --> ISignatureProvider : depende
+    FiscalInvoiceService --> IHaciendaClient : depende
+    FiscalInvoiceService --> IComprobanteRepository : depende
+    FiscalInvoiceService --> IOutboxWriter : depende
+    FiscalInvoiceService --> ComprobanteStateMachine : usa
+    IXmlComprobanteBuilder <|.. XmlComprobanteBuilderV44 : implementa
+    ISignatureProvider <|.. XadesEpesSignatureProvider : implementa
+    IHaciendaClient <|.. HaciendaHttpClient : implementa
+    IComprobanteRepository <|.. ComprobanteSqlRepository : implementa
+    IOutboxWriter <|.. OutboxWriter : implementa
+    ComprobanteSqlRepository ..> Comprobante : persiste
+    FiscalInvoiceController ..> ComprobanteRequest : recibe
+    FiscalInvoiceController ..> ComprobanteResult : retorna
+    FiscalInvoiceService ..> Comprobante : crea/modifica
