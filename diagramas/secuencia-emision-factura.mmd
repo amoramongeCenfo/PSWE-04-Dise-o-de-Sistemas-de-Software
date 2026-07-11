@@ -1,0 +1,51 @@
+---
+title: Flujo 1 — Emisión de factura electrónica (camino feliz + degradación ante Hacienda)
+---
+sequenceDiagram
+    autonumber
+    actor ASIS as Asistente Administrativo /<br/>Vendedor
+    participant SPA as Aplicación Web (SPA)
+    participant IDP as Identity Provider<br/>(Keycloak)
+    participant API as API de Aplicación
+    participant DBTX as BD Transaccional<br/>(dominio + outbox)
+    participant WORKER as Procesador Asíncrono<br/>(Workers)
+    participant BROKER as Broker<br/>(RabbitMQ)
+    participant FISCAL as Servicio de<br/>Facturación Fiscal
+    participant DOCS as Almacén de Documentos<br/>(MinIO / S3)
+    participant HAC as API Ministerio de<br/>Hacienda CR
+    participant DBAUD as Almacén de<br/>Auditoría
+    participant MAIL as Servicio de<br/>Correo
+
+    ASIS->>SPA: Emitir factura (desde cotización aprobada)
+    SPA->>API: POST /api/v1/facturas (HTTPS, Bearer JWT)
+    API->>IDP: Valida JWT (JWKS) — rol + tenant_id
+    IDP-->>API: Token válido (RBAC ok)
+    API->>DBTX: TX única: crea factura (estado emitida_local)<br/>+ evento outbox "emitir_comprobante"
+    DBTX-->>API: commit ok
+    API-->>SPA: 202 Accepted — estado "en proceso"
+    Note over API,DBTX: QS-04 — el evento queda persistido de forma<br/>durable ANTES de responder (outbox, ≤ 80 ms)
+
+    WORKER->>DBTX: lee tabla outbox (relay)
+    WORKER->>BROKER: publica "emitir_comprobante" (event_id)
+    BROKER->>FISCAL: entrega evento (AMQP)
+    FISCAL->>FISCAL: verifica idempotencia por event_id (QS-06)<br/>genera XML + firma XADES-EPES
+    FISCAL->>DOCS: guarda XML firmado (API S3 / HTTPS)
+    FISCAL->>HAC: envía XML firmado (HTTPS)
+
+    alt Hacienda disponible — camino feliz
+        HAC-->>FISCAL: aceptado / rechazado
+        FISCAL->>DBTX: actualiza estado (aceptada / rechazada)<br/>+ outbox "estado_fiscal_actualizado"
+    else Hacienda con timeout / 5xx — QS-02
+        FISCAL->>DBTX: estado pendiente_validacion_hacienda<br/>+ encola reintento (backoff / circuit breaker)
+        Note over FISCAL,HAC: reintento automático FIFO al restaurarse el servicio<br/>(procesado ≤ 10 min tras la restauración, sin pérdida)
+        HAC-->>FISCAL: (posterior) aceptado / rechazado
+        FISCAL->>DBTX: actualiza estado definitivo + outbox
+    end
+
+    WORKER->>DBTX: lee outbox "estado_fiscal_actualizado"
+    WORKER->>BROKER: publica evento de estado
+    BROKER->>WORKER: entrega para notificación / auditoría
+    WORKER->>DBAUD: INSERT (append-only): actor, tenant, timestamp ms,<br/>nro comprobante, estado, hash XML
+    WORKER->>MAIL: envía comprobante (XML/PDF) al cliente final (SMTP/API)
+    SPA->>API: GET /api/v1/facturas/{id} (refresco de estado)
+    API-->>SPA: estado actualizado (aceptada / pendiente / rechazada)
