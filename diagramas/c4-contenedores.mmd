@@ -1,0 +1,82 @@
+---
+title: Vista de estructura interna (C4 nivel 2 — Contenedores) — SmartBilling Connect
+---
+flowchart TB
+    %% ===== Actores internos (confiables) =====
+    subgraph INTERNO["🟢 Usuarios internos (autenticados + RBAC por tenant)"]
+        PYME["Dueño de PYME"]
+        VEND["Vendedor / Ejecutivo"]
+        ASIS["Asistente Administrativo"]
+    end
+
+    %% ===== Plataforma SmartBilling Connect =====
+    subgraph SBC["SmartBilling Connect — Plataforma SaaS multi-tenant (dominio fiscal)"]
+        SPA["Aplicación Web (SPA)<br/><i>React + TypeScript</i><br/>UI de back-office"]
+        API["API de Aplicación<br/><i>ASP.NET Core 8 (C#)</i><br/>CRM, cotizaciones, preventas,<br/>productos, orquestación + outbox"]
+        FISCAL["Servicio de Facturación Fiscal<br/><i>ASP.NET Core 8 (C#)</i><br/>XML, firma XADES-EPES,<br/>máquina de estados fiscal, Hacienda"]
+        WORKER["Procesador Asíncrono (Workers)<br/><i>.NET Worker Service</i><br/>relay outbox, reintentos,<br/>notificaciones, auditoría"]
+        IDP["Identity Provider<br/><i>Keycloak</i><br/>OIDC / OAuth2 / JWT, RBAC multi-tenant"]
+        BROKER[["Broker de Mensajería<br/><i>RabbitMQ</i><br/>eventos de dominio (AMQP)"]]
+        DBTX[("Base de Datos Transaccional<br/><i>SQL Server</i><br/>tenants, clientes, cotizaciones,<br/>facturas + tabla outbox")]
+        DBAUD[("Almacén de Auditoría<br/><i>SQL Server append-only</i><br/>log inmutable")]
+        DOCS[("Almacén de Documentos Fiscales<br/><i>MinIO (S3)</i><br/>XML/PDF, retención 5 años")]
+    end
+
+    %% ===== Sistemas y actores externos (consistentes con vista de contexto 7.1) =====
+    CLI["Cliente Final<br/>(externo no autenticado)"]
+    subgraph AUTORIDAD["🔵 Autoridad fiscal"]
+        HAC["API Ministerio de Hacienda CR"]
+    end
+    subgraph ORQ["🟠 Captación social (semi-confiable)"]
+        MOTOR["Motor de Automatización<br/>responde, guía y genera preventa"]
+    end
+    subgraph CANALES["🔴 Canales no confiables"]
+        META["Meta Platforms<br/>(Instagram / WhatsApp)"]
+        TIKTOK["TikTok Business API"]
+    end
+    subgraph EJEC["⚪ Ejecutor sin autoridad"]
+        MAIL["Servicio de Correo Electrónico"]
+    end
+
+    %% ===== Relaciones internas (con protocolo) =====
+    PYME -->|HTTPS| SPA
+    VEND -->|HTTPS| SPA
+    ASIS -->|HTTPS| SPA
+    SPA -->|"REST/JSON sobre HTTPS (Bearer JWT)"| API
+    SPA -.->|"login OIDC / OAuth2 (HTTPS)"| IDP
+    API -.->|"validación de token (JWKS / HTTPS)"| IDP
+    API -->|"SQL — ADO.NET/TLS (dominio + outbox en misma tx)"| DBTX
+    API -->|"REST/HTTPS interno"| FISCAL
+
+    WORKER -->|"SQL — lee tabla outbox"| DBTX
+    WORKER -->|"AMQP — publica eventos"| BROKER
+    FISCAL -->|"AMQP — consume 'emitir', publica 'estado fiscal'"| BROKER
+    BROKER -->|"AMQP — consume notif./auditoría"| WORKER
+    WORKER -->|"SQL insert-only"| DBAUD
+    FISCAL -->|"SQL — estados de comprobante"| DBTX
+    FISCAL -->|"API S3 / HTTPS"| DOCS
+
+    %% ===== Relaciones externas (consistentes con contexto) =====
+    MOTOR -->|"handoff de preventa — REST/HTTPS (autenticado + idempotente)"| API
+    META -->|"mensajes (webhook REST)"| MOTOR
+    TIKTOK -->|"mensajes (webhook REST)"| MOTOR
+    FISCAL -->|"XML firmado sobre HTTPS"| HAC
+    HAC -.->|"estado aceptado/rechazado"| FISCAL
+    WORKER -->|"SMTP / API"| MAIL
+    MAIL -.->|"entrega de comprobante/notificación"| CLI
+
+    %% ===== Estilos =====
+    classDef plat fill:#eef6ff,stroke:#1f6feb,color:#0b2a4a;
+    classDef store fill:#fff4e6,stroke:#cc7a00,color:#5a3600;
+    classDef autoridad fill:#cfe2ff,stroke:#0b5394;
+    classDef canal fill:#f8d7da,stroke:#b02a37;
+    classDef orq fill:#ffe5b4,stroke:#cc7a00;
+    classDef ejec fill:#e2e3e5,stroke:#6c757d;
+    classDef interno fill:#d1e7dd,stroke:#0f5132;
+    class SPA,API,FISCAL,WORKER,IDP,BROKER plat;
+    class DBTX,DBAUD,DOCS store;
+    class HAC autoridad;
+    class META,TIKTOK canal;
+    class MOTOR orq;
+    class MAIL ejec;
+    class PYME,VEND,ASIS interno;

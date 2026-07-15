@@ -1,0 +1,38 @@
+---
+title: Flujo 2 — Handoff de preventa desde el Motor de Automatización (idempotente)
+---
+sequenceDiagram
+    autonumber
+    actor CLI as Cliente final<br/>(red social)
+    participant CANAL as Meta / TikTok<br/>(canal no confiable)
+    participant MOTOR as Motor de Automatización<br/>(externo, semi-confiable)
+    participant API as API de Aplicación
+    participant IDP as Identity Provider<br/>(Keycloak)
+    participant DBTX as BD Transaccional<br/>(dominio + outbox)
+    participant WORKER as Procesador Asíncrono<br/>(Workers)
+    participant BROKER as Broker<br/>(RabbitMQ)
+    participant DBAUD as Almacén de<br/>Auditoría
+
+    CLI->>CANAL: mensaje con intención de compra
+    CANAL->>MOTOR: webhook REST (evento de mensaje)
+    MOTOR->>MOTOR: responde y guía automáticamente<br/>(capa social — fuera del sistema, QS-03)
+    MOTOR->>API: POST /api/v1/preventas — handoff<br/>(credencial de integración + Idempotency-Key)
+    API->>IDP: valida credencial de integración (OAuth2 client)
+    IDP-->>API: token válido — alcance integración,<br/>SIN acceso al dominio fiscal (REST-05)
+    API->>DBTX: consulta clave de idempotencia
+
+    alt Clave nueva — primer intento
+        API->>DBTX: TX única: crea preventa + registra clave<br/>+ evento outbox "preventa_recibida"
+        DBTX-->>API: commit ok
+        API-->>MOTOR: 201 Created (preventa_id)
+    else Clave ya procesada — duplicado (QS-06)
+        API-->>MOTOR: 200 OK — retorna resultado previo,<br/>sin ejecutar ningún efecto nuevo
+        Note over API,DBTX: exactamente un efecto de negocio:<br/>una preventa, una notificación, una entrada de auditoría
+    end
+
+    WORKER->>DBTX: lee tabla outbox (relay)
+    WORKER->>BROKER: publica "preventa_recibida" (event_id)
+    BROKER->>WORKER: entrega para notificación / auditoría
+    WORKER->>DBAUD: INSERT (append-only): integración, tenant,<br/>timestamp, event_id (RF-05)
+
+    Note over MOTOR,DBAUD: El dominio fiscal NO avanza en este flujo: la preventa queda visible en la SPA<br/>y solo una acción interna (vendedor) la convierte en cotización/factura (sección 3.4)

@@ -1,0 +1,45 @@
+sequenceDiagram
+    autonumber
+    participant API as API de Aplicación
+    participant CTRL as FiscalInvoiceController
+    participant SVC as FiscalInvoiceService
+    participant XML as XmlComprobanteBuilderV44
+    participant SIG as XadesEpesSignatureProvider
+    participant FSM as ComprobanteStateMachine
+    participant REPO as ComprobanteSqlRepository
+    participant OUT as OutboxWriter
+    participant HAC as HaciendaHttpClient
+
+    API->>CTRL: POST /fiscal/comprobantes (ComprobanteRequest)
+    CTRL->>SVC: EmitirComprobanteAsync(request, ct)
+    SVC->>SVC: ValidarRequest(request)
+    SVC->>XML: ConstruirXml(request)
+    XML-->>SVC: xmlContent
+    SVC->>SIG: Firmar(xmlContent, certificado)
+    SIG-->>SVC: xmlFirmado
+    SVC->>FSM: Transicionar(Generado, Firmado)
+    FSM-->>SVC: Firmado
+    SVC->>REPO: GuardarAsync(comprobante, tx)
+    SVC->>OUT: EncolarEventoAsync(eventoAuditoria, tx)
+    Note over REPO,OUT: Misma transacción (patrón outbox, ADR-002)
+    REPO-->>SVC: OK (commit)
+    SVC-->>CTRL: ComprobanteResult (Estado=Firmado)
+    CTRL-->>API: 202 Accepted (ComprobanteResult)
+
+    par Envío asíncrono a Hacienda
+        SVC->>HAC: EnviarComprobanteAsync(xmlFirmado, ct)
+        alt Camino feliz: Hacienda responde a tiempo
+            HAC-->>SVC: HaciendaResponse(Aceptado, claveNumerica)
+            SVC->>FSM: Transicionar(Firmado, RespuestaHaciendaOk)
+            FSM-->>SVC: Aceptado
+            SVC->>REPO: GuardarAsync(comprobante actualizado, tx)
+            SVC->>OUT: EncolarEventoAsync(eventoEstadoFinal, tx)
+        else Camino de error: timeout / HTTP 5xx de Hacienda (QS-02)
+            HAC-->>SVC: TimeoutException / HttpRequestException
+            SVC->>FSM: Transicionar(Firmado, FalloComunicacionHacienda)
+            FSM-->>SVC: PendienteValidacionHacienda
+            SVC->>REPO: GuardarAsync(comprobante actualizado, tx)
+            SVC->>OUT: EncolarEventoAsync(eventoPendiente, tx)
+            Note right of SVC: El comprobante queda encolado para reintento FIFO. El usuario ya recibió 202 Accepted (QS-02, degradación menor o igual a 2s)
+        end
+    end

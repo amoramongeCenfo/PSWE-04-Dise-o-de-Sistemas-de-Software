@@ -12,8 +12,8 @@
 | **URL del repositorio** | https://github.com/amoramongeCenfo/PSWE-04-Dise-o-de-Sistemas-de-Software/tree/main |
 | **Docente** | Juan Mauricio Leandro Jiménez |
 | **Cuatrimestre** | 2026 — 02 |
-| **Versión del documento** | 0.2 — Avance 1 (en curso) |
-| **Fecha de última actualización** | 2026-06-09 |
+| **Versión del documento** | 0.3 — Avance 2 |
+| **Fecha de última actualización** | 2026-07-11 |
 
 ---
 
@@ -23,7 +23,7 @@
 |---|---|---|---|---|
 | 0.1 | 2026-05-23 | Propuesta (S03) | Creación del documento inicial | Edgar Jacob, Brandon Garita, Alejandro Mora |
 | 0.2 | 2026-06-12 | Avance 1 (S07) | Descripción del sistema, alcance, stakeholders, drivers arquitectónicos, escenarios de calidad y Vista de Contexto C4 | Edgar Jacob, Brandon Garita, Alejandro Mora |
-| 0.3 | [fecha] | Avance 2 (S11) | [descripción] | [nombres] |
+| 0.3 | 2026-07-11 | Avance 2 (S11) | Vista de estructura interna C4 nivel 2 (contenedores) con justificación de notación, diagrama y tabla descriptiva, y definición del stack tecnológico (.NET 8 / ASP.NET Core, SQL Server, Keycloak, RabbitMQ, MinIO); vista de comportamiento con diagramas de secuencia de los flujos críticos; estilo(s) arquitectónico(s) adoptado(s) con alternativas y análisis de trade-offs; registro de decisiones (ADRs); y primer componente con diseño detallado. | Edgar Jacob, Brandon Garita, Alejandro Mora |
 | 1.0 | [fecha] | Entrega final (S14) | Documento completo | [nombres] |
 
 ---
@@ -235,7 +235,7 @@ El sistema integra varias fuentes de datos (CRM interno, módulo fiscal, motor d
 7. Ninguna consulta a repositorios de datos fiscales se ejecuta **sin un `tenant_id` válido** resuelto por el mecanismo central de autorización.
 
 ---
-# 2. Stakeholders
+## 2. Stakeholders
  
 **Plataforma de Facturación Electrónica Inteligente con Automatización Comercial y Redes Sociales**
  
@@ -335,11 +335,11 @@ Un stakeholder es cualquier persona, grupo u organización que tiene interés en
  
 | ID | Stakeholder | Tipo | Influencia | Drivers asociados |
 |---|---|---|---|---|
-| STK-01 | Dueños de PYMES | Usuario / Negocio | **Alta** | RF-01, RF-02, RF-03, QA-02, REST-03 |
+| STK-01 | Dueños de PYMES | Usuario / Negocio | **Alta** | RF-01, RF-02, RF-03, RF-06, QA-02, REST-03 |
 | STK-02 | Personal administrativo | Usuario operativo | **Media** | RF-03, RF-04, QA-04 |
 | STK-03 | Clientes finales | Usuario externo | **Baja** | RF-02, QA-02, QA-04 |
-| STK-04 | Administradores del sistema | Operador / Técnico | **Alta** | RF-04, RF-05, QA-01, QA-03, QA-05, REST-05 |
-| STK-05 | Entidades tributarias | Regulador | **Alta** | RF-01, RF-05, QA-01, REST-01, REST-02 |
+| STK-04 | Administradores del sistema | Operador / Técnico | **Alta** | RF-04, RF-05, RF-06, QA-01, QA-03, QA-05, REST-05 |
+| STK-05 | Entidades tributarias | Regulador | **Alta** | RF-01, RF-05, RF-06, QA-01, REST-01, REST-02 |
 | STK-06 | Equipo de desarrollo | Constructor | **Alta** | QA-03, QA-05, REST-05, REST-06 |
 | STK-07 | Proveedores APIs (Meta, TikTok) | Proveedor externo | **Media** | RF-02, QA-03, REST-04 |
 ## 3. Drivers Arquitectónicos
@@ -461,11 +461,11 @@ Uno de los valores diferenciales de SmartBilling Connect es responder automátic
  
 | Elemento | Descripción |
 |---|---|
-| **Fuente** | Cliente final que envía un mensaje de consulta de precio o disponibilidad mediante Instagram Direct o WhatsApp Business, recibido vía webhook de Meta Platforms. |
+| **Fuente** | Cliente final que envía un mensaje de consulta de precio o disponibilidad mediante Instagram Direct o WhatsApp Business, recibido por el motor de automatización vía webhook de Meta Platforms. |
 | **Estímulo** | Llegada simultánea de 50 eventos webhook en un intervalo de 60 segundos durante una campaña de ventas activa. |
-| **Entorno** | Sistema bajo carga sostenida, con el motor de automatización procesando flujos concurrentes. |
-| **Artefacto** | Subsistema de integración social, bus de eventos, motor de automatización y módulo de gestión de clientes. |
-| **Respuesta** | El sistema procesa cada evento, identifica si el cliente ya existe en el CRM, genera la respuesta automática configurada y la envía por el canal de origen, sin requerir intervención humana en ningún paso. |
+| **Entorno** | Plataforma bajo carga sostenida, con el motor de automatización procesando flujos concurrentes en la capa de captación social (sección 3.4). |
+| **Artefacto** | Motor de automatización (capa de captación social), API pública de consulta del sistema y endpoint de handoff de preventas. |
+| **Respuesta** | El motor de automatización procesa cada evento, consulta a la API del sistema si el cliente ya existe en el CRM (acceso de solo lectura permitido por la frontera de 3.4), genera la respuesta automática configurada y la envía por el canal de origen, sin requerir intervención humana en ningún paso; ante intención de compra, entrega la preventa al sistema mediante el handoff idempotente. |
 | **Medida de respuesta** | Tiempo de respuesta extremo a extremo —desde la recepción del webhook hasta el envío de la respuesta al cliente— ≤ 4 segundos en el percentil 95 bajo la carga descrita. Throughput mínimo sostenido de 50 eventos por minuto sin degradación. Tasa de mensajes no procesados por timeout del motor inferior al 1 % del total recibido. |
  
  > **Tensión con QS-01 y QS-04 — Rendimiento vs. Seguridad:** El log de auditoría append-only exigido por QS-01 y QS-04 introduce una escritura obligatoria en cada operación sensible. Si esa escritura es síncrona y bloqueante dentro del camino crítico del procesamiento de webhooks, la latencia acumulada puede superar fácilmente los 4 segundos bajo carga sostenida. La decisión de diseño implicada distingue dos casos: para **operaciones fiscales**, el evento se persiste transaccionalmente en un outbox durable antes de responder y el log append-only final se procesa de forma asíncrona (no es un bloqueo síncrono del camino crítico); para **eventos comerciales de redes sociales**, es aceptable un modelo "at-least-once" con verificación post-proceso. En ambos casos el procesamiento asíncrono garantiza reintentos, orden, idempotencia y detección de duplicados.
@@ -563,7 +563,7 @@ El grupo se compromete a respetar los siguientes principios durante todo el dise
 ---
 
 # BLOQUE 3 — VISTAS ARQUITECTÓNICAS
-*Hito: Avance 1 (S07) — sección 7.1 / Avance 2 (S11) — secciones 7.2 a 7.5*
+*Hito: Avance 1 (S07) — sección 7.1 / Avance 2 (S11) — secciones 7.2 y 7.3 / Entrega final (S14) — secciones 7.4 y 7.5*
 
 > **Nota sobre notación:** Este documento usa **C4 como notación por defecto** para las vistas arquitectónicas porque es la notación del texto base del curso (Brown, 2014). Si para alguna vista específica C4 no es la notación más adecuada dado el tipo de sistema, el grupo puede usar la notación UML equivalente (diagrama de componentes, despliegue, estado o actividad), pero debe justificar explícitamente en esa sección por qué C4 no aplica y qué notación alternativa usa. Una justificación insuficiente se evalúa como si no hubiera diagrama.
 
@@ -599,7 +599,7 @@ El grupo se compromete a respetar los siguientes principios durante todo el dise
 #### 7.1.1 Fronteras de confianza
 
 ![Vista de Fronteras de Confianza](../diagramas/c4-contexto-confianza.png)
-*Figura 2 — Vista de contexto del sistema SmartBilling Connect*
+*Figura 3 — Fronteras de confianza del sistema SmartBilling Connect*
 
 No todos los actores y sistemas externos tienen el mismo nivel de confianza, y esa distinción —no solo el diagrama— guía decisiones de seguridad, validación e idempotencia. Se clasifican así:
 
@@ -612,7 +612,7 @@ No todos los actores y sistemas externos tienen el mismo nivel de confianza, y e
 | **Ejecutor sin autoridad** | Servicio de Correo Electrónico | Solo entrega mensajes; **nunca** es fuente de verdad del estado de un comprobante. Su fallo no debe bloquear ni alterar el estado fiscal. |
 | **Externo no autenticado** | Cliente Final | Recibe comprobantes/notificaciones; no accede al back-office. Sin privilegios sobre datos de otros. |
 
-> **Nota:** La versión del diagrama C4 de contexto (Figura 2) debe agrupar visualmente estos elementos por frontera de confianza para que el límite entre "lo que el sistema controla" y "lo que delega o recibe de terceros" sea explícito.
+> **Nota:** La agrupación visual de estos elementos por frontera de confianza se presenta en la Figura 3, que complementa la Figura 2 haciendo explícito el límite entre "lo que el sistema controla" y "lo que delega o recibe de terceros".
 
 ---
 
@@ -628,20 +628,38 @@ No todos los actores y sistemas externos tienen el mismo nivel de confianza, y e
 > **Instrucciones:** Para cada contenedor o componente principal, describí: su responsabilidad, la tecnología usada, las interfaces que expone y las dependencias que tiene. Las relaciones entre contenedores deben indicar el protocolo o mecanismo de comunicación (REST, gRPC, eventos, SQL, etc.).
 
 #### 7.2.1 Justificación de notación
-> Si usás C4 contenedores, escribí "Se usa C4 nivel 2 porque el sistema tiene N unidades desplegables separadas: [listá]. Si usás una alternativa: "No se usa C4 nivel 2 porque [razón]. En su lugar se usa [notación] porque [justificación]."
 
-[Completar]
+**Se usa C4 nivel 2 (Container Diagram)** porque SmartBilling Connect no es un monolito único ni un firmware/pipeline sin unidades desplegables: es una plataforma SaaS multi-tenant compuesta por **nueve unidades desplegables y de almacenamiento con frontera propia**, que se ejecutan y escalan de forma independiente y que se comunican por protocolos explícitos. C4 nivel 2 es la representación más honesta porque el valor arquitectónico del sistema está justamente en *cómo se reparten las responsabilidades entre esas unidades* y en las fronteras entre ellas (en particular, el aislamiento del dominio fiscal).
+
+Las nueve unidades son: (1) Aplicación Web (SPA), (2) API de Aplicación, (3) Servicio de Facturación Fiscal, (4) Procesador Asíncrono (Workers), (5) Identity Provider, (6) Broker de Mensajería, (7) Base de Datos Transaccional, (8) Almacén de Auditoría append-only y (9) Almacén de Documentos Fiscales.
+
+Esta separación no es cosmética: responde directamente a los drivers. El **Servicio de Facturación Fiscal** se aísla como contenedor propio para mantener el dominio fiscal dentro del sistema y fuera del alcance del motor de automatización (REST-05, sección 3.4) y para poder endurecer su seguridad de forma independiente (QA-01). El **Almacén de Auditoría** es un contenedor separado, append-only, porque RF-05 exige un log inmutable distinto del almacenamiento transaccional. El **Procesador Asíncrono** y el **Broker de Mensajería** materializan el patrón *outbox* + procesamiento asíncrono que resuelve la tensión seguridad/rendimiento de QS-01/QS-04 y la idempotencia de RF-06/QS-06. El **Identity Provider** externaliza autenticación/autorización multi-tenant (RF-04, REST-03). El stack se apoya en componentes gratuitos u open-source (React, ASP.NET Core, Keycloak, RabbitMQ, MinIO) y en **SQL Server** como motor de datos —cubierto por su edición gratuita (Express/Developer) o por licenciamiento existente del equipo—, lo que mantiene el costo acotado a la restricción de presupuesto REST-06.
+
+> **Nota:** "Contenedor" en C4 no significa Docker; designa cualquier unidad de ejecución o almacenamiento con frontera propia. La vista de despliegue físico (nodos, infraestructura) corresponde a la sección 7.4.
 
 #### 7.2.2 Diagrama
 
-![Vista de estructura interna](../diagramas/estructura-interna.png)
-*Figura 2 — Vista de estructura interna del sistema [Nombre]*
+![Vista de estructura interna](../diagramas/c4-contenedores.png)
+*Figura 4 — Vista de estructura interna (C4 nivel 2 — Contenedores) del sistema SmartBilling Connect. Código fuente en `/diagramas/c4-contenedores.mmd`.*
+
+**Consistencia con la vista de contexto (7.1).** Los mismos actores y sistemas externos de la Figura 2 reaparecen aquí en los bordes, con idéntico nivel de confianza y protocolo: los usuarios internos (🟢) entran por HTTPS; el Motor de Automatización (🟠) entrega la preventa por REST/HTTPS autenticado e idempotente y **no cruza al dominio fiscal**; Meta y TikTok (🔴) solo tocan al motor por webhook REST; la API de Hacienda (🔵) intercambia XML firmado sobre HTTPS y devuelve el estado; el Servicio de Correo (⚪) recibe SMTP/API y entrega al Cliente Final. Lo que la vista de contexto trataba como una caja negra ("SmartBilling Connect") se abre aquí en sus nueve contenedores, sin añadir ni quitar relaciones externas: ninguna dependencia externa nueva aparece y ninguna del contexto desaparece.
 
 #### 7.2.3 Descripción de elementos
 
 | Elemento | Tipo | Responsabilidad | Tecnología | Interfaces expuestas | Dependencias |
 |---|---|---|---|---|---|
-| [Nombre] | Contenedor / Componente / Módulo | [Qué hace] | [Stack tecnológico] | [API REST en /api/v1, cola SQS, etc.] | [Qué otros elementos necesita] |
+| **Aplicación Web (SPA)** | Contenedor (frontend) | Interfaz de back-office para usuarios internos: gestión de clientes, cotizaciones, preventas, emisión y monitoreo. No contiene lógica fiscal. | React + TypeScript | UI web sobre HTTPS | API de Aplicación (REST), Identity Provider (login OIDC) |
+| **API de Aplicación** | Contenedor (servicio) | Núcleo aplicativo (monolito modular): CRM/clientes, cotizaciones, preventas, productos y orquestación del flujo. Único punto de entrada del handoff de preventa. Escribe dominio + eventos en la tabla *outbox* en la misma transacción. | ASP.NET Core 8 (C#) | REST/JSON `/api/v1` sobre HTTPS (Bearer JWT); endpoint de handoff de preventa | BD Transaccional (SQL, ADO.NET/TLS), Servicio de Facturación Fiscal (REST interno), Identity Provider (validación JWT) |
+| **Servicio de Facturación Fiscal** | Contenedor (servicio) | Dominio fiscal aislado: genera el XML, aplica firma XADES-EPES, gestiona la máquina de estados del comprobante y toda la comunicación con Hacienda. Fuente del estado interno `pendiente_validacion_hacienda`. | ASP.NET Core 8 (C#) | REST/HTTPS interno (consumido por la API); consumidor/productor AMQP | BD Transaccional (SQL), Almacén de Documentos (S3), Broker (AMQP), API Hacienda (XML/HTTPS) |
+| **Procesador Asíncrono (Workers)** | Contenedor (servicio background) | Relay del *outbox* a eventos, reintentos con backoff/circuit breaker, envío de notificaciones y escritura del log de auditoría. Garantiza idempotencia por `event_id`. | .NET Worker Service (BackgroundService) | Consumidor AMQP; procesos programados | Broker (AMQP), BD Transaccional (lee outbox), Almacén de Auditoría (insert-only), Servicio de Correo (SMTP/API) |
+| **Identity Provider** | Contenedor (servicio) | Autenticación y autorización multi-tenant: OIDC/OAuth2, emisión y validación de JWT, RBAC por rol y resolución de `tenant_id`. | Keycloak | OIDC / OAuth2 / JWKS sobre HTTPS | BD propia de Keycloak (interna) |
+| **Broker de Mensajería** | Contenedor (infraestructura) | Transporte asíncrono de eventos de dominio; desacopla emisión fiscal, notificación y auditoría del hilo de request. Habilita reintentos y orden. | RabbitMQ | AMQP (colas/exchanges) | — |
+| **Base de Datos Transaccional** | Contenedor (almacenamiento) | Persistencia transaccional multi-tenant con aislamiento por `tenant_id`: tenants, clientes, cotizaciones, facturas y tabla *outbox*. | SQL Server | SQL (ADO.NET/TLS) | — |
+| **Almacén de Auditoría** | Contenedor (almacenamiento) | Log append-only e inmutable de acciones y transacciones fiscales; nadie lo modifica tras escribir (RF-05, invariante 6 de 1.6). | SQL Server (esquema append-only / insert-only) | SQL insert-only | — |
+| **Almacén de Documentos Fiscales** | Contenedor (almacenamiento) | Conservación de XML/PDF de comprobantes con integridad demostrable durante ≥5 años (REST-02). | MinIO (compatible S3) | API S3 sobre HTTPS | — |
+| **Motor de Automatización** *(externo)* | Sistema externo | Capa de captación social: responde/guía en redes y entrega preventas. No participa del dominio fiscal (REST-05). | Fuera del sistema | — | API de Aplicación (handoff REST) |
+| **API Ministerio de Hacienda CR** *(externo)* | Sistema externo | Autoridad fiscal: valida el comprobante y define su estado aceptado/rechazado. | Fuera del sistema | XML sobre HTTPS | — |
+| **Servicio de Correo Electrónico** *(externo)* | Sistema externo | Entrega comprobantes y notificaciones al cliente final; nunca es fuente de verdad del estado fiscal. | Fuera del sistema | SMTP / API | — |
 
 ---
 
@@ -654,20 +672,27 @@ No todos los actores y sistemas externos tienen el mismo nivel de confianza, y e
 >
 > **Instrucciones:** Incluí un diagrama de secuencia por cada flujo crítico. Para el Avance 2, incluí al menos los 2 flujos más importantes. Para la Entrega final, cubrí el camino feliz Y al menos un camino de error o excepción por flujo. Cada diagrama debe tener título, los participantes claramente identificados y las llamadas etiquetadas con el método o mensaje.
 
-#### Flujo 1 — [Nombre del flujo, ej. "Autenticación de usuario"]
+Los dos flujos seleccionados son los más importantes del sistema porque cubren, entre ambos, el driver central del dominio (RF-01 — emisión fiscal) y el driver diferenciador del producto (RF-02/RF-06 — captación social con handoff idempotente), y porque ejercitan los contenedores y las fronteras de confianza definidos en 7.1 y 7.2.
 
-![Diagrama de secuencia — Flujo 1](../diagramas/secuencia-flujo1.png)
-*Figura 3 — [Nombre del flujo]*
+#### Flujo 1 — Emisión de factura electrónica
 
-**Descripción:** [Párrafo que narra el flujo, los actores involucrados, las decisiones que se toman y cómo se maneja el caso de error]
+![Diagrama de secuencia — Emisión de factura electrónica](../diagramas/secuencia-emision-factura.png)
+*Figura 5 — Secuencia: emisión de factura electrónica, camino feliz y degradación ante indisponibilidad de Hacienda. Código fuente en `/diagramas/secuencia-emision-factura.mmd`.*
 
-**Escenarios de calidad que este flujo valida:** [Referencias a QS-XX de la sección 4]
+**Descripción:** El flujo inicia cuando un usuario interno (Asistente Administrativo o Vendedor) solicita emitir una factura desde una cotización aprobada. La SPA envía la solicitud a la API de Aplicación con su JWT; la API valida token, rol y `tenant_id` contra el Identity Provider (ningún dato fiscal se toca sin esa validación — QS-01). La decisión de diseño clave ocurre en el paso 5: la factura (estado `emitida_local`) y el evento outbox `emitir_comprobante` se escriben **en la misma transacción**, de modo que el evento de emisión queda persistido de forma durable *antes* de responder 202 al usuario (patrón *outbox*, QS-04); la emisión fiscal nunca bloquea el hilo de request. El Procesador Asíncrono releva el outbox al Broker y el Servicio de Facturación Fiscal —único contenedor que habla con Hacienda— verifica idempotencia por `event_id` (un reintento interno no genera segunda factura — QS-06), genera el XML, aplica la firma XADES-EPES, archiva el documento en el Almacén de Documentos y lo envía a Hacienda. **Manejo de error:** si Hacienda responde timeout o 5xx, el comprobante pasa al estado fiscal legítimo `pendiente_validacion_hacienda` y entra a la cola de reintentos con backoff y circuit breaker; el usuario solo percibe el cambio de estado (≤ 2 s de degradación) y al restaurarse el servicio la cola se procesa en orden FIFO sin intervención manual ni pérdida de documentos (QS-02). En ambas ramas, el resultado termina en el Almacén de Auditoría (entrada append-only con actor, tenant, timestamp, número de comprobante, estado y hash del XML) y el comprobante se entrega al cliente final por el Servicio de Correo, que nunca es fuente de verdad del estado fiscal.
+
+**Escenarios de calidad que este flujo valida:** QS-01 (autorización por tenant en el punto de entrada), QS-02 (degradación y recuperación ante fallo de Hacienda), QS-04 (auditoría persistida en outbox antes de responder, ≤ 80 ms), QS-06 (idempotencia por `event_id` ante reintentos internos de emisión).
 
 ---
 
-#### Flujo 2 — [Nombre del flujo]
+#### Flujo 2 — Handoff de preventa desde el Motor de Automatización
 
-*(Repetir estructura para cada flujo adicional)*
+![Diagrama de secuencia — Handoff de preventa](../diagramas/secuencia-handoff-preventa.png)
+*Figura 6 — Secuencia: handoff idempotente de preventa desde el Motor de Automatización. Código fuente en `/diagramas/secuencia-handoff-preventa.mmd`.*
+
+**Descripción:** El flujo inicia fuera del sistema: un cliente final envía un mensaje con intención de compra por Instagram/WhatsApp o TikTok (canales no confiables), el canal lo entrega por webhook al Motor de Automatización, y este responde y guía al cliente de forma automática dentro de su capa social (QS-03). Cuando detecta intención de compra, el motor ejecuta el **handoff**: un POST al endpoint de preventas de la API de Aplicación, autenticado con credencial de integración propia (OAuth2 client, sin sesión de usuario humano) y acompañado de una `Idempotency-Key`. El Identity Provider emite un token con alcance de integración que **no tiene acceso al dominio fiscal** (REST-05, sección 3.4). La API consulta la clave de idempotencia y decide: si la clave es nueva, crea la preventa, registra la clave y escribe el evento outbox `preventa_recibida` en una única transacción, respondiendo 201; **manejo del caso de error/duplicado:** si la clave ya fue procesada —reejecución de un workflow del motor, reintento por timeout— responde 200 con el resultado previo sin ejecutar ningún efecto nuevo, garantizando exactamente un efecto de negocio por evento (QS-06). El Procesador Asíncrono releva el outbox, publica el evento y escribe la entrada de auditoría append-only con la identidad de la integración (RF-05). El dominio fiscal no avanza en ningún punto de este flujo: la preventa queda visible en la SPA y solo una acción interna de un vendedor la convierte en cotización o factura, lo que garantiza que un fallo del motor no tenga impacto fiscal.
+
+**Escenarios de calidad que este flujo valida:** QS-06 (deduplicación por clave de idempotencia con exactamente un efecto de negocio), QS-03 (la capa social responde fuera del camino crítico del sistema; el handoff es asíncrono respecto de la conversación), QS-01 (credencial de integración autenticada y acotada por alcance), además de los drivers RF-05 (auditoría del actor no humano) y REST-05 (el motor no participa del dominio fiscal).
 
 ---
 
@@ -711,113 +736,153 @@ No todos los actores y sistemas externos tienen el mismo nivel de confianza, y e
 
 ## 8. Estilo arquitectónico
 
-> **Instrucciones:** Documentá el estilo o los estilos arquitectónicos que usás en el sistema (capas, microservicios, event-driven, pipe-and-filter, CQRS, hexagonal, etc.). Un sistema puede combinar estilos — documentá cómo. Para cada estilo, explicá: por qué es el más adecuado para este sistema, cuáles son sus trade-offs en este contexto específico, y qué alternativas consideraron y rechazaron. La justificación debe conectar directamente con los drivers de la sección 3 y los escenarios de calidad de la sección 4.
+> El estilo arquitectónico de SmartBilling Connect responde a una tensión central identificada en los drivers de la sección 3: el sistema exige fronteras fuertes entre el dominio comercial, el dominio fiscal (con consecuencia legal directa), el procesamiento asíncrono y la identidad/acceso (RF-01 a RF-06, QA-05), e interoperabilidad con al menos tres ecosistemas externos (Hacienda, los canales sociales vía el motor de automatización y el servicio de correo) — pero debe ser construido y operado por un equipo de 3 personas con presupuesto limitado (REST-06). La selección del estilo prioriza satisfacer los atributos de calidad QA-01 a QA-05 dentro de esas restricciones, y se evalúa contra dos alternativas que fueron descartadas con sus respectivos trade-offs. El estilo adoptado es el que materializa la vista de contenedores de la sección 7.2.
 
 ### 8.1 Estilo(s) adoptado(s)
 
 | Estilo | Aplicación en el sistema | Justificación |
 |---|---|---|
-| [Nombre del estilo] | [Dónde y cómo se aplica] | [Por qué este estilo responde a los drivers del sistema] |
+| Arquitectura basada en servicios (*service-based*) con núcleo de monolito modular | Estructura general del sistema, materializada en la vista de contenedores (sección 7.2). El dominio comercial completo (CRM, cotizaciones, preventas, productos y orquestación del flujo) se concentra en la **API de Aplicación**, un monolito modular con módulos de fronteras explícitas. Solo se separan como unidades desplegables propias los servicios que un driver justifica: el **Servicio de Facturación Fiscal** (aislamiento del dominio regulado — ADR-001, REST-05, QS-05), el **Procesador Asíncrono** (desacople del camino crítico — ADR-002) y el **Identity Provider** (Keycloak — RF-04, REST-03). Es el punto medio entre monolito y microservicios: pocos servicios de grano grueso, una única base de datos transaccional compartida (con tabla outbox) y sin proliferación de infraestructura distribuida. | Responde a la tensión entre subsistemas desacoplados (RF-01 a RF-05, QA-05) y equipo reducido (REST-06). Un monolito puro no fuerza la frontera fiscal que exigen REST-05 y QS-05 — quedaría como convención, no como barrera arquitectónica (ver alternativas de ADR-001) —, mientras que microservicios completos exceden la capacidad operativa del equipo (sección 8.2). Con cuatro servicios de grano grueso, el pipeline CI/CD y el monitoreo siguen siendo operables por 3 personas, y el dominio fiscal puede endurecerse (QA-01) y desplegarse (QS-05) de forma independiente del resto. |
+| Comunicación basada en eventos con broker y outbox transaccional (complementario) | Comunicación asíncrona entre contenedores: la API de Aplicación y el Servicio de Facturación Fiscal escriben los eventos de dominio en la tabla *outbox* dentro de la misma transacción que el cambio de estado; el Procesador Asíncrono los releva a RabbitMQ y desde ahí se procesan la emisión fiscal, las notificaciones y el log de auditoría, con reintentos, orden garantizado y deduplicación por `event_id` (ADR-002). | Responde a QA-02 (Disponibilidad) y QA-04 (Rendimiento): un fallo o lentitud de Hacienda no bloquea el hilo de request (QS-02), y la auditoría obligatoria no penaliza el camino crítico — solo la escritura en outbox, ≤ 80 ms (QS-01, QS-04). El broker durable garantiza que ningún evento encolado se pierda ante reinicios (medida de QS-02) y habilita la idempotencia de RF-06/QS-06. |
 
 ### 8.2 Alternativas consideradas y rechazadas
 
 | Alternativa | Por qué se consideró | Por qué se rechazó |
 |---|---|---|
-| [Estilo alternativo 1] | [Qué ventajas ofrecía] | [Qué desventaja o incompatibilidad con los drivers la descartó] |
-| [Estilo alternativo 2] | | |
+| Microservicios (descomposición fina) | SmartBilling Connect tiene subsistemas con fronteras claras (dominio comercial, facturación fiscal, identidad, auditoría, notificaciones). Cada uno podría desplegarse como servicio independiente con su propia base de datos, permitiendo escalamiento y despliegue totalmente independientes. | Complejidad operacional vs. equipo (REST-06): descomponer en 8-10 servicios finos con base de datos por servicio exigiría API gateway, service discovery, distributed tracing y orquestación de contenedores (Kubernetes), inoperable para 3 personas y por encima del presupuesto. Consistencia de datos fiscales (QA-01, REST-01): la emisión exige que la factura y su evento de auditoría se confirmen en una única transacción local (ADR-002); con los datos repartidos entre servicios eso obligaría a sagas o two-phase commit. Escala prematura: los volúmenes iniciales (cientos de facturas/día) no justifican la distribución fina. El estilo adoptado ya captura el beneficio clave — aislar el dominio fiscal — sin ese costo. |
+| Monolito en capas (N-Tier) desplegado como unidad única | Es el patrón más conocido, simple de implementar y con baja curva de aprendizaje. Consistente con KISS y la restricción de equipo (REST-06): un solo artefacto, un pipeline, un proceso a monitorear. | Sin frontera física del dominio fiscal: la frontera de REST-05 y el despliegue independiente del módulo fiscal que exige QS-05 (≤ 10 días hábiles, cero subsistemas ajenos modificados) quedarían como convención de código, no como algo forzado por el diseño (ADR-001). Sin fronteras de dominio (QA-05): en capas horizontales, la lógica fiscal y la comercial coexisten en la misma capa de negocio sin separación. Solo comunicación síncrona: el procesamiento asíncrono con outbox, broker y workers que exigen QS-02 y QS-04 no tiene un lugar natural en un modelo request/response en capas. |
 
 ### 8.3 Análisis de trade-offs del estilo elegido
 
-> **Instrucciones:** Todo estilo arquitectónico tiene compromisos. Documentá los trade-offs del estilo elegido en el contexto específico de este sistema. Conectá cada trade-off con un escenario de calidad de la sección 4.
+> Todo estilo arquitectónico tiene compromisos. Los siguientes trade-offs son específicos de SmartBilling Connect y su contexto de drivers.
 
 | Trade-off | Qué se gana | Qué se sacrifica | Escenario afectado |
 |---|---|---|---|
-| [Descripción del trade-off] | [Beneficio concreto] | [Costo concreto] | [QS-XX] |
-
+| Pocos servicios de grano grueso vs. escalamiento fino por módulo | Cuatro unidades de ejecución operables por 3 personas (REST-06): pipeline CI/CD y monitoreo acotados. El Servicio de Facturación Fiscal y los Workers escalan y se despliegan de forma independiente del núcleo (QS-05). | Dentro de la API de Aplicación, CRM, cotizaciones y preventas escalan juntos: un pico de preventas obliga a replicar el núcleo completo, no solo ese módulo. | QA-02 (Disponibilidad) y QA-04 (Rendimiento) — se mitiga con réplicas del núcleo detrás de un balanceador; los picos de mensajería social los absorbe el motor de automatización (externo) y el handoff llega ya filtrado como preventas. |
+| Consistencia transaccional local vs. visibilidad inmediata en el log final | La factura y su evento de auditoría/outbox se confirman en una única transacción de BD: nunca existe un comprobante sin su evento durable (RF-05, QS-04), sin la complejidad de sagas. | El log append-only final es eventualmente consistente: existe una ventana de segundos entre el commit transaccional y la entrada visible en el Almacén de Auditoría. | QS-04 (Trazabilidad) tensiona con QA-04 (Rendimiento) — resuelto con el outbox (ADR-002); la ventana queda trazada con los timestamps de encolado y de confirmación, por lo que no se confunde con falta de auditoría. |
+| Fronteras lógicas dentro del núcleo vs. fronteras físicas | Los módulos del núcleo (API de Aplicación) comparten proceso y transacciones locales: sin overhead de serialización ni latencia de red entre CRM, cotizaciones y preventas. | Las fronteras entre módulos del núcleo son convenciones de equipo, no barreras del compilador ni de la red. Un desarrollador puede acceder directamente a tablas de otro módulo, violando el encapsulamiento. | QA-05 (Modificabilidad) — se mitiga con revisión de código, tests de dependencias entre módulos y convenciones de estructura de carpetas. El módulo de mayor riesgo — el fiscal — ya está extraído como servicio propio (ADR-001), donde la frontera sí es física. |
+| Broker externo (RabbitMQ) vs. bus de eventos in-process | Eventos durables ante caídas y reinicios, reintentos con backoff, dead-letter queues y visibilidad operativa de las colas. Sin esto, la medida de QS-02 ("ningún documento encolado se pierde ante reinicios") no es demostrable. | Una pieza más de infraestructura que instalar, monitorear y actualizar (tensión con REST-06), y latencia adicional frente a eventos en memoria. | QS-02 (Disponibilidad) y QS-06 (Idempotencia) se favorecen sobre la simplicidad operativa — se mitiga porque RabbitMQ es open-source (REST-06) y se opera como un único contenedor con configuración estándar. |
 ---
 
 ## 9. Registro de decisiones — ADRs
 
-> **Instrucciones:** Un ADR documenta una decisión arquitectónica significativa — una que, si se toma mal o se cambia después, tiene consecuencias costosas. No todas las decisiones merecen un ADR — solo las que involucran trade-offs, alternativas reales y consecuencias duraderas. Ejemplos: elección de base de datos, protocolo de comunicación entre servicios, mecanismo de autenticación, estrategia de manejo de errores, modelo de datos principal. Se requieren **mínimo 3 ADRs**. Cada ADR vive en un archivo separado en `/decisiones/ADR-XXX-titulo.md` y se referencia desde aquí.
->
-> **Estado posible:** Propuesta | Aceptada | Superada | Deprecada
-
 ---
 
-### ADR-001 — [Título de la decisión]
+### ADR-001 — Aislamiento del dominio fiscal en un servicio dedicado (Servicio de Facturación Fiscal)
+
+> Documento completo: [`/decisiones/ADR-001-aislamiento-dominio-fiscal.md`](../decisiones/ADR-001-aislamiento-dominio-fiscal.md)
 
 | Campo | Detalle |
 |---|---|
-| **Estado** | [Aceptada] |
-| **Fecha** | [YYYY-MM-DD] |
-| **Autores** | [Nombres] |
-
-**Contexto**
-> Describí la situación que requirió tomar esta decisión. ¿Qué problema estabas resolviendo? ¿Qué constraints existían? ¿Qué sabías y qué no sabías en el momento de decidir?
-
-[Completar]
-
-**Decisión**
-> La decisión tomada, enunciada de forma clara y directa. "Decidimos usar X porque Y."
-
-[Completar]
-
-**Alternativas consideradas**
-
-| Alternativa | Ventajas | Desventajas | Por qué se descartó |
-|---|---|---|---|
-| [Opción A] | | | |
-| [Opción B] | | | |
-
-**Consecuencias positivas**
-- [Qué mejora o se habilita con esta decisión]
-- [Qué drivers o escenarios de calidad satisface]
-
-**Consecuencias negativas**
-- [Qué se complica o qué deuda introduce]
-- [Qué escenarios de calidad se ven afectados negativamente]
-
-**Revisión requerida si:** [Condición que haría que esta decisión deba revisarse — ej. "Si el volumen de transacciones supera 10k/día, esta decisión debe reevaluarse"]
+| **Estado** | Aceptada |
+| **Fecha** | 2026-07-04 |
+| **Autores** | Edgar Jacob, Brandon Garita, Alejandro Mora |
+| **Drivers / escenarios que responde** | REST-05, QA-01, RF-01, QS-05 |
 
 ---
 
-### ADR-002 — [Título de la decisión]
+### ADR-002 — Patrón Transactional Outbox con procesamiento asíncrono para auditoría e idempotencia
 
-*(Repetir estructura)*
+> Documento completo: [`/decisiones/ADR-002-outbox-transaccional-asincrono.md`](../decisiones/ADR-002-outbox-transaccional-asincrono.md)
+
+| Campo | Detalle |
+|---|---|
+| **Estado** | Aceptada |
+| **Fecha** | 2026-07-04 |
+| **Autores** | Edgar Jacob, Brandon Garita, Alejandro Mora |
+| **Drivers / escenarios que responde** | RF-05, RF-06, QS-01, QS-03, QS-04, QS-06 |
 
 ---
 
-### ADR-003 — [Título de la decisión]
+### ADR-003 — Aislamiento multi-tenant mediante `tenant_id` centralizado en la capa de autorización
 
-*(Repetir estructura. Agregar ADR-004, ADR-005, etc. según las decisiones del proyecto)*
+> Documento completo: [`/decisiones/ADR-003-estrategia-multi-tenancy.md`](../decisiones/ADR-003-estrategia-multi-tenancy.md)
+
+| Campo | Detalle |
+|---|---|
+| **Estado** | Aceptada |
+| **Fecha** | 2026-07-04 |
+| **Autores** | Edgar Jacob, Brandon Garita, Alejandro Mora |
+| **Drivers / escenarios que responde** | REST-03, REST-06, QS-01, QA-01 |
 
 ---
+
+
+
 
 # BLOQUE 5 — DISEÑO DETALLADO
-*Hito: Entrega final (S14)*
-
----
+*Hito: Avance 2 (S11) — primer componente / Entrega final (S14) — componentes restantes*
 
 ## 10. Diseño detallado de componentes
 
-> **Instrucciones:** Seleccioná los **3 componentes más críticos** del sistema — los que implementan la lógica más importante, los que tienen mayor impacto en los atributos de calidad, o los que toman las decisiones de diseño más interesantes. Para cada componente, producí los cuatro artefactos de diseño siguientes. La trazabilidad desde los casos de uso hasta el diseño es obligatoria — cada componente debe poder rastrearse hasta al menos un caso de uso de la sección 1.4.
+### 10.1 Componente 1 — Servicio de Facturación Fiscal
+
+**Responsabilidad:** Genera el XML del comprobante electrónico, lo firma digitalmente (XADES-EPES), gestiona su máquina de estados y coordina el envío y la consulta de estado ante el Ministerio de Hacienda. Lo elegimos como el componente más crítico porque ahí vive toda la lógica que tiene consecuencia legal directa (RF-01). Además es la pieza que quedó aislada a propósito frente al motor de automatización (REST-05, ADR-001) y la que carga con los escenarios de calidad más exigentes del proyecto: QS-01, QS-02, QS-04, QS-05 y QS-06.
+
+**Trazabilidad:** Sección 1.4, casos de uso *"Emitir facturas electrónicas, validar información fiscal de clientes, reenviar comprobantes electrónicos, consultar estados tributarios, corregir errores operativos de facturación"* (Asistente administrativo) y *"convertir cotizaciones en facturas electrónicas"* (Vendedor / Ejecutivo comercial). Ambos apuntan al elemento **Servicio de Facturación Fiscal** descrito en la vista de estructura interna (sección 7.2.3).
+
+#### 10.1.1 Diagrama de clases de diseño
+
+![Diagrama de clases — Servicio de Facturación Fiscal](../diagramas/clases-servicio-facturacion-fiscal.png)
+*Figura 7 — Diagrama de clases de diseño: Servicio de Facturación Fiscal. Código fuente en `/diagramas/clases-servicio-facturacion-fiscal.mmd`.*
+
+Separamos el punto de entrada (`FiscalInvoiceController`, boundary) de la orquestación (`FiscalInvoiceService`, control) y de los detalles de infraestructura, cada uno detrás de su propia interfaz: `IXmlComprobanteBuilder` para construir el XML (intercambiable según la versión del esquema, pensando en QS-05), `ISignatureProvider` para la firma digital, `IHaciendaClient` para hablar con Hacienda (con su política de reintentos y circuit breaker) y `IComprobanteRepository` / `IOutboxWriter` para la parte de persistencia y outbox que se explica en ADR-002. `ComprobanteStateMachine` concentra las transiciones válidas del comprobante (Generado → Firmado → Enviado → Aceptado / Rechazado / PendienteValidacionHacienda) para que esa lógica no termine repartida por todo el servicio. Gracias a esta separación por interfaces, si Hacienda cambia el esquema el año que viene, en principio bastaría con reemplazar `XmlComprobanteBuilderV44` sin tocar `FiscalInvoiceService` ni el resto — que es más o menos lo que promete QS-05.
 
 ---
 
-### Componente 1 — [Nombre del componente]
+#### 10.1.2 Contratos de interfaz
+
+---
+
+| Método / Endpoint | Precondición | Postcondición | Excepciones |
+|---|---|---|---|
+| `Task<ComprobanteResult> FiscalInvoiceService.EmitirComprobanteAsync(ComprobanteRequest request, CancellationToken ct)` | `request.TenantId` corresponde a un tenant activo y resuelto por la capa de autorización (ADR-003); `request.Lineas` contiene al menos una línea con montos válidos (> 0). | El comprobante queda persistido con estado `Firmado` o `PendienteValidacionHacienda`; su evento de auditoría queda encolado de forma transaccional en el outbox (ADR-002) antes de retornar. | `ValidationException` si `request` no cumple las reglas de negocio mínimas; `TenantMismatchException` si el `TenantId` del request no coincide con el del contexto de autorización; `FiscalSignatureException` si la firma digital falla por certificado inválido o vencido. |
+| `Task<ComprobanteStatusDto> FiscalInvoiceService.ConsultarEstadoAsync(Guid comprobanteId, Guid tenantId)` | `comprobanteId` corresponde a un comprobante existente perteneciente a `tenantId`. | Retorna el estado actual del comprobante sin exponer datos de otro tenant. | `NotFoundException` si el comprobante no existe para ese `tenantId` (nunca revela si existe para otro tenant — QS-01). |
+| `string IXmlComprobanteBuilder.ConstruirXml(ComprobanteRequest request)` | `request` ya fue validado por `FiscalInvoiceService.ValidarRequest`. | Retorna un XML bien formado y conforme al esquema vigente del Ministerio de Hacienda. | `SchemaValidationException` si el XML resultante no valida contra el esquema XSD vigente. |
+| `byte[] ISignatureProvider.Firmar(string xmlContent, X509Certificate2 certificado)` | `certificado` es válido, no ha expirado y corresponde al tenant emisor. | Retorna el XML firmado digitalmente conforme al estándar XADES-EPES, listo para envío. | `CertificateExpiredException`; `InvalidCertificateException` si el certificado no corresponde al emisor declarado. |
+| `Task<HaciendaResponse> IHaciendaClient.EnviarComprobanteAsync(byte[] xmlFirmado, CancellationToken ct)` | `xmlFirmado` fue producido por un `ISignatureProvider` válido. | Retorna la respuesta de Hacienda (aceptado/rechazado) o agota la política de reintentos y propaga el fallo. | `TimeoutException` / `HttpRequestException` ante indisponibilidad de Hacienda (capturadas explícitamente para activar el camino `PendienteValidacionHacienda`, QS-02). |
+| `ComprobanteEstado ComprobanteStateMachine.Transicionar(ComprobanteEstado actual, ComprobanteEvento evento)` | La transición solicitada (`actual` + `evento`) existe en la tabla de transiciones válidas. | Retorna el nuevo estado válido; nunca dos actores concurrentes pueden aplicar transiciones inconsistentes sobre el mismo comprobante (control de concurrencia optimista en el repositorio). | `InvalidStateTransitionException` si la transición solicitada no es válida desde el estado actual. |
+
+#### 10.1.3 Análisis de robustez
+
+| Objeto | Tipo (Boundary / Control / Entity) | Responsabilidad |
+|---|---|---|
+| `FiscalInvoiceController` | Boundary | Punto de entrada REST interno consumido únicamente por la API de Aplicación; traduce el request HTTP a la llamada del servicio y el resultado a una respuesta HTTP. |
+| `ComprobanteRequest` / `ComprobanteResult` | Boundary (DTO) | Estructuras de datos que cruzan la frontera del componente hacia la API de Aplicación. |
+| `HaciendaHttpClient` | Boundary | Interfaz hacia el sistema externo (API del Ministerio de Hacienda); traduce llamadas del dominio a HTTP/XML y viceversa. |
+| `FiscalInvoiceService` | Control | Orquesta el flujo completo de emisión: valida, construye XML, firma, transiciona estado, persiste y encola auditoría. |
+| `ComprobanteStateMachine` | Control | Aplica las reglas de negocio que determinan qué transiciones de estado son válidas. |
+| `XmlComprobanteBuilderV44` | Control | Transforma los datos de la solicitud en el XML fiscal conforme al esquema vigente. |
+| `XadesEpesSignatureProvider` | Control | Aplica la operación criptográfica de firma digital sobre el XML construido. |
+| `Comprobante` | Entity | Representa el dato persistente central del dominio fiscal (estado, XML, hash de integridad, clave numérica). |
+| `ComprobanteSqlRepository` | Entity | Objeto de acceso a datos que lee y escribe el estado persistente de `Comprobante`. |
+| `OutboxWriter` | Entity | Objeto de acceso a datos que persiste el evento de auditoría en la tabla outbox dentro de la misma transacción (ADR-002). |
+
+#### 10.1.4 Diagrama de secuencia — flujo principal
+
+![Secuencia — Emisión de comprobante fiscal](../diagramas/secuencia-emision-comprobante-fiscal.png)
+*Figura 8 — Secuencia: emisión de comprobante fiscal, camino feliz y camino de error (timeout de Hacienda). Código fuente en `/diagramas/secuencia-emision-comprobante-fiscal.mmd`.*
+
+**Descripción:** La API de Aplicación llama a `FiscalInvoiceController`, que delega en `FiscalInvoiceService`. Este diagrama detalla el interior del componente; en el flujo extremo a extremo de la Figura 5, la solicitud de emisión llega al servicio como evento AMQP (`emitir_comprobante`) relevado desde el outbox — ese consumidor AMQP delega en el mismo `FiscalInvoiceService` que el endpoint REST interno mostrado aquí, por lo que ambas entradas comparten idéntica validación, idempotencia y máquina de estados. El servicio valida la solicitud, construye el XML, lo firma, pasa el comprobante a estado `Firmado` y lo guarda junto con su evento de auditoría en la misma transacción (el patrón outbox de ADR-002), devolviendo `202 Accepted` sin esperar a Hacienda. Por otro lado, el servicio envía el comprobante a Hacienda: si todo sale bien, Hacienda responde a tiempo y el comprobante pasa a `Aceptado`. Si Hacienda no responde o falla (timeout o HTTP 5xx sostenido, el caso que cubre QS-02), el comprobante pasa a `PendienteValidacionHacienda` y queda en cola para reintentarse en orden FIFO, sin que el usuario note más de los 2 segundos de degradación que permite ese mismo escenario.
+
+**Escenarios de calidad que este flujo valida:** QS-01 (autorización por tenant antes de cualquier operación), QS-02 (degradación controlada si Hacienda falla), QS-04 (auditoría transaccional vía outbox), QS-05 (el módulo de XML queda aislado detrás de una interfaz) y QS-06 (idempotencia de los reintentos).
+
+---
+
+### 10.2 Componente 2 — [Nombre del componente] *(Entrega final — S14)*
 
 **Responsabilidad:** [Una oración que describe qué hace este componente y por qué es crítico para el sistema]
 
 **Trazabilidad:** [Referencia a los casos de uso de la sección 1.4 que este componente soporta] → [Referencia al elemento en la vista de estructura interna, sección 7.2]
 
-#### 10.1.1 Diagrama de clases de diseño
+#### 10.2.1 Diagrama de clases de diseño
 
 > **Instrucciones:** Este no es un diagrama de clases de análisis ni un modelo de dominio. Es el diseño: incluí métodos con firmas completas (nombre, parámetros, tipo de retorno), modificadores de acceso, relaciones de dependencia reales y las interfaces que el componente expone y consume. Mostrá cómo se aplican los patrones de diseño (sección 11) dentro de este componente.
 
-![Diagrama de clases — Componente 1](../diagramas/clases-componente1.png)
+![Diagrama de clases — Componente 2](../diagramas/clases-componente2.png)
 *Figura N — Diagrama de clases de diseño: [Nombre del componente]*
 
-#### 10.1.2 Contratos de interfaz
+#### 10.2.2 Contratos de interfaz
 
 > **Instrucciones:** Para cada método o endpoint público del componente, documentá su contrato formal. Un contrato no es solo la firma — es la especificación de qué garantiza el método y qué exige de quien lo llama.
 
@@ -825,7 +890,7 @@ No todos los actores y sistemas externos tienen el mismo nivel de confianza, y e
 |---|---|---|---|
 | `[firma del método]` | [Qué debe ser verdad antes de llamarlo] | [Qué garantiza que será verdad después] | [Qué errores puede lanzar y bajo qué condición] |
 
-#### 10.1.3 Análisis de robustez
+#### 10.2.3 Análisis de robustez
 
 > **Instrucciones:** Usá el análisis de robustez para verificar que el diseño del componente cubre correctamente la interacción entre la interfaz externa (boundary), la lógica de control (control) y los datos (entity). Identificá los objetos de cada tipo que participan en los flujos principales de este componente.
 
@@ -833,27 +898,56 @@ No todos los actores y sistemas externos tienen el mismo nivel de confianza, y e
 |---|---|---|
 | [Nombre] | | |
 
-#### 10.1.4 Diagrama de secuencia — flujo principal
+#### 10.2.4 Diagrama de secuencia — flujo principal
 
 > **Instrucciones:** Mostrá el flujo de mensajes entre los objetos identificados en el análisis de robustez para el caso de uso principal que este componente soporta. Incluí el camino feliz y al menos un camino de error significativo.
 
-![Secuencia — Componente 1, flujo principal](../diagramas/secuencia-comp1-principal.png)
-*Figura N — Secuencia: [Nombre del flujo principal de Componente 1]*
+![Secuencia — Componente 2, flujo principal](../diagramas/secuencia-comp2-principal.png)
+*Figura N — Secuencia: [Nombre del flujo principal de Componente 2]*
 
-![Secuencia — Componente 1, camino de error](../diagramas/secuencia-comp1-error.png)
-*Figura N — Secuencia: [Nombre del camino de error de Componente 1]*
-
----
-
-### Componente 2 — [Nombre del componente]
-
-*(Repetir la estructura 10.1.1 a 10.1.4)*
+![Secuencia — Componente 2, camino de error](../diagramas/secuencia-comp2-error.png)
+*Figura N — Secuencia: [Nombre del camino de error de Componente 2]*
 
 ---
 
-### Componente 3 — [Nombre del componente]
+### 10.3 Componente 3 — [Nombre del componente] *(Entrega final — S14)*
 
-*(Repetir la estructura 10.1.1 a 10.1.4)*
+**Responsabilidad:** [Una oración que describe qué hace este componente y por qué es crítico para el sistema]
+
+**Trazabilidad:** [Referencia a los casos de uso de la sección 1.4 que este componente soporta] → [Referencia al elemento en la vista de estructura interna, sección 7.2]
+
+#### 10.3.1 Diagrama de clases de diseño
+
+> **Instrucciones:** Este no es un diagrama de clases de análisis ni un modelo de dominio. Es el diseño: incluí métodos con firmas completas (nombre, parámetros, tipo de retorno), modificadores de acceso, relaciones de dependencia reales y las interfaces que el componente expone y consume. Mostrá cómo se aplican los patrones de diseño (sección 11) dentro de este componente.
+
+![Diagrama de clases — Componente 3](../diagramas/clases-componente3.png)
+*Figura N — Diagrama de clases de diseño: [Nombre del componente]*
+
+#### 10.3.2 Contratos de interfaz
+
+> **Instrucciones:** Para cada método o endpoint público del componente, documentá su contrato formal. Un contrato no es solo la firma — es la especificación de qué garantiza el método y qué exige de quien lo llama.
+
+| Método / Endpoint | Precondición | Postcondición | Excepciones |
+|---|---|---|---|
+| `[firma del método]` | [Qué debe ser verdad antes de llamarlo] | [Qué garantiza que será verdad después] | [Qué errores puede lanzar y bajo qué condición] |
+
+#### 10.3.3 Análisis de robustez
+
+> **Instrucciones:** Usá el análisis de robustez para verificar que el diseño del componente cubre correctamente la interacción entre la interfaz externa (boundary), la lógica de control (control) y los datos (entity). Identificá los objetos de cada tipo que participan en los flujos principales de este componente.
+
+| Objeto | Tipo (Boundary / Control / Entity) | Responsabilidad |
+|---|---|---|
+| [Nombre] | | |
+
+#### 10.3.4 Diagrama de secuencia — flujo principal
+
+> **Instrucciones:** Mostrá el flujo de mensajes entre los objetos identificados en el análisis de robustez para el caso de uso principal que este componente soporta. Incluí el camino feliz y al menos un camino de error significativo.
+
+![Secuencia — Componente 3, flujo principal](../diagramas/secuencia-comp3-principal.png)
+*Figura N — Secuencia: [Nombre del flujo principal de Componente 3]*
+
+![Secuencia — Componente 3, camino de error](../diagramas/secuencia-comp3-error.png)
+*Figura N — Secuencia: [Nombre del camino de error de Componente 3]*
 
 ---
 
