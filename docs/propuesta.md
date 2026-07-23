@@ -12,8 +12,8 @@
 | **URL del repositorio** | https://github.com/amoramongeCenfo/PSWE-04-Dise-o-de-Sistemas-de-Software/tree/main |
 | **Docente** | Juan Mauricio Leandro Jiménez |
 | **Cuatrimestre** | 2026 — 02 |
-| **Versión del documento** | 0.3 — Avance 2 |
-| **Fecha de última actualización** | 2026-07-11 |
+| **Versión del documento** | 1.0 — Entrega final |
+| **Fecha de última actualización** | 2026-08-11 |
 
 ---
 
@@ -24,7 +24,7 @@
 | 0.1 | 2026-05-23 | Propuesta (S03) | Creación del documento inicial | Edgar Jacob, Brandon Garita, Alejandro Mora |
 | 0.2 | 2026-06-12 | Avance 1 (S07) | Descripción del sistema, alcance, stakeholders, drivers arquitectónicos, escenarios de calidad y Vista de Contexto C4 | Edgar Jacob, Brandon Garita, Alejandro Mora |
 | 0.3 | 2026-07-11 | Avance 2 (S11) | Vista de estructura interna C4 nivel 2 (contenedores) con justificación de notación, diagrama y tabla descriptiva, y definición del stack tecnológico (.NET 8 / ASP.NET Core, SQL Server, Keycloak, RabbitMQ, MinIO); vista de comportamiento con diagramas de secuencia de los flujos críticos; estilo(s) arquitectónico(s) adoptado(s) con alternativas y análisis de trade-offs; registro de decisiones (ADRs); y primer componente con diseño detallado. | Edgar Jacob, Brandon Garita, Alejandro Mora |
-| 1.0 | [fecha] | Entrega final (S14) | Documento completo | [nombres] |
+| 1.0 | 2026-08-11 | Entrega final (S14) | Refinamiento de las vistas de contexto (7.1) y contenedores (7.2) para consolidar su consistencia mutua; **vista de componentes C4 nivel 3** de dos subsistemas —Servicio de Facturación Fiscal y Procesador Asíncrono— (7.2.4); **vista de comportamiento completa** con cinco flujos y sus caminos de error (7.3); **vista de despliegue** sobre VM cloud + Docker Compose con nodos, artefactos y conectividad (7.4); **vista de concurrencia** con modelo de outbox/competing consumers, idempotencia y concurrencia optimista (7.5); **documentación de la evolución del diseño** entre avances (7.6); y consolidación del diseño detallado de componentes, patrones, análisis de calidad, tendencias, glosario y referencias. | Edgar Jacob, Brandon Garita, Alejandro Mora |
 
 ---
 
@@ -42,6 +42,7 @@
    - 7.3 [Vista de comportamiento](#73-vista-de-comportamiento)
    - 7.4 [Vista de despliegue](#74-vista-de-despliegue)
    - 7.5 [Vista de concurrencia](#75-vista-de-concurrencia-opcional) *(si aplica)*
+   - 7.6 [Evolución del diseño entre avances](#76-evolución-del-diseño-entre-avances)
 8. [Estilo arquitectónico](#8-estilo-arquitectónico)
 9. [Registro de decisiones — ADRs](#9-registro-de-decisiones--adrs)
 10. [Diseño detallado de componentes](#10-diseño-detallado-de-componentes)
@@ -614,6 +615,8 @@ No todos los actores y sistemas externos tienen el mismo nivel de confianza, y e
 
 > **Nota:** La agrupación visual de estos elementos por frontera de confianza se presenta en la Figura 3, que complementa la Figura 2 haciendo explícito el límite entre "lo que el sistema controla" y "lo que delega o recibe de terceros".
 
+> **Refinamiento en la Entrega final (S14).** Al bajar a las vistas de contenedores (7.2), componentes (7.2.4) y despliegue (7.4) se revisó que no apareciera ningún actor o sistema externo nuevo ni desapareciera ninguno de los definidos en Avance 1: el contexto se mantiene con los mismos 9 elementos de frontera y sus mismos niveles de confianza. El único ajuste consciente fue reforzar en el texto que **Meta y TikTok llegan al sistema exclusivamente a través del Motor de Automatización** (nunca directo), coherente con la frontera de la sección 3.4; esto ya estaba implícito en Avance 1 y ahora es explícito en todas las vistas. La vista de contexto, por tanto, no cambió estructuralmente entre avances (ver trazabilidad completa en 7.6).
+
 ---
 
 ### 7.2 Vista de estructura interna
@@ -663,6 +666,55 @@ Esta separación no es cosmética: responde directamente a los drivers. El **Ser
 
 ---
 
+#### 7.2.4 Vista de componentes (C4 nivel 3)
+
+> **Qué muestra:** El interior de un contenedor de la vista 7.2, descompuesto en sus componentes principales (agrupaciones de código con una responsabilidad clara), las interfaces que exponen/consumen y la tecnología con que se implementan. Es el puente entre la vista de contenedores (7.2.2) y el diseño detallado de clases (sección 10).
+
+> **Notación — C4 nivel 3 (Component Diagram).** Se abren **dos subsistemas**, elegidos por ser los que concentran los escenarios de calidad más exigentes y las fronteras arquitectónicas del sistema: el **Servicio de Facturación Fiscal** (dominio regulado aislado — ADR-001) y el **Procesador Asíncrono** (materialización del outbox y de la idempotencia — ADR-002). Se eligieron estos dos por encima de la API de Aplicación porque son los que cargan con QS-01, QS-02, QS-04 y QS-06; la API de Aplicación es un monolito modular de responsabilidades más convencionales (CRM, cotizaciones) cuyo detalle relevante —el handoff— ya quedó cubierto en la vista de comportamiento (7.3, Flujos 2 y 4).
+
+##### 7.2.4.1 Componentes del Servicio de Facturación Fiscal
+
+![Vista de componentes — Servicio de Facturación Fiscal](../diagramas/c4-componentes-fiscal.png)
+*Figura 5 — Vista de componentes (C4 nivel 3) del Servicio de Facturación Fiscal. Código fuente en `/diagramas/c4-componentes-fiscal.mmd`.*
+
+El servicio expone **dos puntos de entrada** que convergen en el mismo orquestador, de modo que la validación, la idempotencia y la máquina de estados se aplican por igual sin importar por dónde entre la solicitud:
+
+| Componente | Rol (B/C/E) | Responsabilidad | Interfaz |
+|---|---|---|---|
+| `FiscalInvoiceController` | Boundary | Punto de entrada REST interno consumido por la API de Aplicación; traduce HTTP ↔ dominio. | REST/HTTPS interno |
+| `FiscalEventConsumer` | Boundary | Consumidor AMQP del evento `emitir_comprobante` relevado desde el outbox; delega en el mismo servicio que el controller. | AMQP (RabbitMQ) |
+| `FiscalInvoiceService` | Control | Orquestador: valida, coordina construcción/firma/envío, transiciona estado y encola auditoría de forma transaccional. | — (núcleo) |
+| `ComprobanteStateMachine` | Control | Concentra las transiciones válidas del comprobante; evita lógica de estado dispersa. | — |
+| `IdempotencyGuard` | Control | Deduplica por `event_id`: un reintento interno no genera un segundo comprobante (QS-06). | — |
+| `IXmlComprobanteBuilder` → `XmlComprobanteBuilderV44` | Control | Construye el XML conforme al esquema vigente; **intercambiable** ante cambios de Hacienda (QS-05). | Interfaz de construcción |
+| `ISignatureProvider` → `XadesEpesSignatureProvider` | Control | Aplica la firma XAdES-EPES sobre el XML. | Interfaz de firma |
+| `IHaciendaClient` → `HaciendaHttpClient` | Boundary | Cliente hacia Hacienda con **reintentos + circuit breaker** (QS-02). | XML/HTTPS externo |
+| `IComprobanteRepository` → `ComprobanteSqlRepository` | Entity | Persistencia del estado del comprobante con **concurrencia optimista**. | SQL (ADO.NET/TLS) |
+| `IOutboxWriter` → `OutboxWriter` | Entity | Escribe el evento de auditoría en la tabla outbox dentro de la misma transacción (ADR-002). | SQL (misma tx) |
+
+**Consistencia hacia arriba (7.2) y hacia abajo (10).** Cada dependencia externa del diagrama coincide exactamente con las que la Figura 4 asigna al contenedor "Servicio de Facturación Fiscal" (BD Transaccional, Broker, Almacén de Documentos y API de Hacienda): la vista de componentes no introduce ninguna dependencia que no existiera ya a nivel de contenedor. Hacia abajo, estos mismos componentes son los que la sección 10.1 detalla a nivel de clases y contratos (Figura 14).
+
+##### 7.2.4.2 Componentes del Procesador Asíncrono (Workers)
+
+![Vista de componentes — Procesador Asíncrono](../diagramas/c4-componentes-workers.png)
+*Figura 6 — Vista de componentes (C4 nivel 3) del Procesador Asíncrono (Workers). Código fuente en `/diagramas/c4-componentes-workers.mmd`.*
+
+Este contenedor tiene dos rutas de trabajo: **relevar** el outbox hacia el broker y **consumir** eventos para notificar y auditar. Ambas comparten la garantía de idempotencia y la política de reintentos.
+
+| Componente | Rol (B/C/E) | Responsabilidad |
+|---|---|---|
+| `OutboxRelay` | Control | *Poller* que lee el outbox no publicado (claim por lote con bloqueo de fila) y lo relaya al broker. |
+| `EventDispatcher` | Control | Enruta cada evento consumido a su handler (competing consumers). |
+| `IdempotencyGuard` | Control | Deduplica por `event_id`: exactamente un efecto de negocio por evento (QS-06). |
+| `RetryPolicy + CircuitBreaker` | Control | Backoff exponencial y reintento FIFO ante fallos aguas abajo (QS-02); re-encola `emitir_comprobante`. |
+| `NotificationDispatcher` | Control | Arma y envía el comprobante/notificación al cliente por el Servicio de Correo. |
+| `AuditWriter` | Entity | Escribe la entrada append-only e inmutable en el Almacén de Auditoría (RF-05, QS-04). |
+| `OutboxRepository` | Entity | Marca los eventos del outbox como publicados tras confirmarse la publicación. |
+
+**Consistencia con 7.2.** Las dependencias del diagrama —lee el outbox de la BD Transaccional, publica/consume en el Broker, escribe en el Almacén de Auditoría, envía por el Servicio de Correo y re-encola hacia el Servicio Fiscal— son exactamente las que la Figura 4 asigna al contenedor "Procesador Asíncrono", sin agregados ni omisiones. El modelo de concurrencia de estos componentes (claim de outbox, competing consumers, concurrencia optimista) se analiza en detalle en la sección 7.5.
+
+---
+
 ### 7.3 Vista de comportamiento
 *Hito: Avance 2 (S11) — al menos 2 flujos; Entrega final (S14) — flujos completos*
 
@@ -672,12 +724,20 @@ Esta separación no es cosmética: responde directamente a los drivers. El **Ser
 >
 > **Instrucciones:** Incluí un diagrama de secuencia por cada flujo crítico. Para el Avance 2, incluí al menos los 2 flujos más importantes. Para la Entrega final, cubrí el camino feliz Y al menos un camino de error o excepción por flujo. Cada diagrama debe tener título, los participantes claramente identificados y las llamadas etiquetadas con el método o mensaje.
 
-Los dos flujos seleccionados son los más importantes del sistema porque cubren, entre ambos, el driver central del dominio (RF-01 — emisión fiscal) y el driver diferenciador del producto (RF-02/RF-06 — captación social con handoff idempotente), y porque ejercitan los contenedores y las fronteras de confianza definidos en 7.1 y 7.2.
+Para la Entrega final se documentan **cinco flujos**, cada uno con su camino feliz y al menos un camino de error o excepción. Los dos primeros (introducidos en Avance 2) son los más importantes porque cubren el driver central del dominio (RF-01 — emisión fiscal) y el driver diferenciador del producto (RF-02/RF-06 — captación social con handoff idempotente). Los tres restantes, añadidos en la Entrega final, cierran el comportamiento extremo a extremo: la **recuperación** ante la caída de Hacienda (que en el Flujo 1 solo se dejaba encolada), la **conversión comercial** completa preventa → cotización → factura (que enlaza los Flujos 2 y 1) y la **corrección** de un comprobante rechazado junto con la invariante de inmutabilidad. En conjunto ejercitan todos los contenedores y fronteras de confianza de 7.1 y 7.2.
+
+| # | Flujo | Camino de error cubierto | Escenarios de calidad |
+|---|---|---|---|
+| 1 | Emisión de factura electrónica | Timeout/5xx de Hacienda → `pendiente_validacion_hacienda` | QS-01, QS-02, QS-04, QS-06 |
+| 2 | Handoff de preventa desde el Motor de Automatización | Clave de idempotencia duplicada → 200 sin efecto nuevo | QS-01, QS-03, QS-06 |
+| 3 | Recuperación asíncrona tras indisponibilidad de Hacienda | Hacienda sigue caída → circuito abierto, backoff, sin pérdida | QS-02, QS-06 |
+| 4 | Conversión de preventa a cotización y factura | Preventa ya convertida (409) / cotización vencida (422) | QS-01, QS-06 |
+| 5 | Corrección tras rechazo de Hacienda | Intento de editar un comprobante aceptado → 409 (inmutable) | RF-05, QS-06 |
 
 #### Flujo 1 — Emisión de factura electrónica
 
 ![Diagrama de secuencia — Emisión de factura electrónica](../diagramas/secuencia-emision-factura.png)
-*Figura 5 — Secuencia: emisión de factura electrónica, camino feliz y degradación ante indisponibilidad de Hacienda. Código fuente en `/diagramas/secuencia-emision-factura.mmd`.*
+*Figura 7 — Secuencia: emisión de factura electrónica, camino feliz y degradación ante indisponibilidad de Hacienda. Código fuente en `/diagramas/secuencia-emision-factura.mmd`.*
 
 **Descripción:** El flujo inicia cuando un usuario interno (Asistente Administrativo o Vendedor) solicita emitir una factura desde una cotización aprobada. La SPA envía la solicitud a la API de Aplicación con su JWT; la API valida token, rol y `tenant_id` contra el Identity Provider (ningún dato fiscal se toca sin esa validación — QS-01). La decisión de diseño clave ocurre en el paso 5: la factura (estado `emitida_local`) y el evento outbox `emitir_comprobante` se escriben **en la misma transacción**, de modo que el evento de emisión queda persistido de forma durable *antes* de responder 202 al usuario (patrón *outbox*, QS-04); la emisión fiscal nunca bloquea el hilo de request. El Procesador Asíncrono releva el outbox al Broker y el Servicio de Facturación Fiscal —único contenedor que habla con Hacienda— verifica idempotencia por `event_id` (un reintento interno no genera segunda factura — QS-06), genera el XML, aplica la firma XADES-EPES, archiva el documento en el Almacén de Documentos y lo envía a Hacienda. **Manejo de error:** si Hacienda responde timeout o 5xx, el comprobante pasa al estado fiscal legítimo `pendiente_validacion_hacienda` y entra a la cola de reintentos con backoff y circuit breaker; el usuario solo percibe el cambio de estado (≤ 2 s de degradación) y al restaurarse el servicio la cola se procesa en orden FIFO sin intervención manual ni pérdida de documentos (QS-02). En ambas ramas, el resultado termina en el Almacén de Auditoría (entrada append-only con actor, tenant, timestamp, número de comprobante, estado y hash del XML) y el comprobante se entrega al cliente final por el Servicio de Correo, que nunca es fuente de verdad del estado fiscal.
 
@@ -688,11 +748,44 @@ Los dos flujos seleccionados son los más importantes del sistema porque cubren,
 #### Flujo 2 — Handoff de preventa desde el Motor de Automatización
 
 ![Diagrama de secuencia — Handoff de preventa](../diagramas/secuencia-handoff-preventa.png)
-*Figura 6 — Secuencia: handoff idempotente de preventa desde el Motor de Automatización. Código fuente en `/diagramas/secuencia-handoff-preventa.mmd`.*
+*Figura 8 — Secuencia: handoff idempotente de preventa desde el Motor de Automatización. Código fuente en `/diagramas/secuencia-handoff-preventa.mmd`.*
 
 **Descripción:** El flujo inicia fuera del sistema: un cliente final envía un mensaje con intención de compra por Instagram/WhatsApp o TikTok (canales no confiables), el canal lo entrega por webhook al Motor de Automatización, y este responde y guía al cliente de forma automática dentro de su capa social (QS-03). Cuando detecta intención de compra, el motor ejecuta el **handoff**: un POST al endpoint de preventas de la API de Aplicación, autenticado con credencial de integración propia (OAuth2 client, sin sesión de usuario humano) y acompañado de una `Idempotency-Key`. El Identity Provider emite un token con alcance de integración que **no tiene acceso al dominio fiscal** (REST-05, sección 3.4). La API consulta la clave de idempotencia y decide: si la clave es nueva, crea la preventa, registra la clave y escribe el evento outbox `preventa_recibida` en una única transacción, respondiendo 201; **manejo del caso de error/duplicado:** si la clave ya fue procesada —reejecución de un workflow del motor, reintento por timeout— responde 200 con el resultado previo sin ejecutar ningún efecto nuevo, garantizando exactamente un efecto de negocio por evento (QS-06). El Procesador Asíncrono releva el outbox, publica el evento y escribe la entrada de auditoría append-only con la identidad de la integración (RF-05). El dominio fiscal no avanza en ningún punto de este flujo: la preventa queda visible en la SPA y solo una acción interna de un vendedor la convierte en cotización o factura, lo que garantiza que un fallo del motor no tenga impacto fiscal.
 
 **Escenarios de calidad que este flujo valida:** QS-06 (deduplicación por clave de idempotencia con exactamente un efecto de negocio), QS-03 (la capa social responde fuera del camino crítico del sistema; el handoff es asíncrono respecto de la conversación), QS-01 (credencial de integración autenticada y acotada por alcance), además de los drivers RF-05 (auditoría del actor no humano) y REST-05 (el motor no participa del dominio fiscal).
+
+---
+
+#### Flujo 3 — Recuperación asíncrona tras indisponibilidad de Hacienda
+
+![Diagrama de secuencia — Recuperación tras caída de Hacienda](../diagramas/secuencia-recuperacion-hacienda.png)
+*Figura 9 — Secuencia: recuperación asíncrona y reintento FIFO idempotente tras la restauración de Hacienda, con el camino de error de indisponibilidad sostenida. Código fuente en `/diagramas/secuencia-recuperacion-hacienda.mmd`.*
+
+**Descripción:** Este flujo completa el camino de error que el Flujo 1 dejaba abierto. El punto de partida es un conjunto de comprobantes en estado `pendiente_validacion_hacienda`, encolados en orden FIFO tras el timeout o 5xx de Hacienda. El Procesador Asíncrono mantiene un **circuit breaker**: mientras el circuito está abierto no golpea a Hacienda de forma continua, sino que espera con **backoff exponencial y jitter** y lanza sondas espaciadas. **Camino de error (indisponibilidad sostenida):** si la sonda vuelve a fallar, el circuito permanece abierto y los comprobantes **no se pierden** —la cola es durable—, simplemente se difiere el siguiente intento. **Camino de recuperación:** cuando una sonda tiene éxito, el circuito pasa a semiabierto y luego a cerrado, y se drena la cola en orden FIFO. Por cada comprobante, el Servicio Fiscal verifica idempotencia por `event_id` (si ya había sido aceptado en un intento previo no lo reenvía — QS-06), reenvía el XML firmado, actualiza el estado definitivo con concurrencia optimista y encola la auditoría; finalmente el Worker escribe la entrada append-only y notifica al cliente. Todo el proceso ocurre **sin intervención manual y sin comprobantes duplicados**.
+
+**Escenarios de calidad que este flujo valida:** QS-02 (recuperación automática tras la restauración del servicio de Hacienda, sin pérdida de documentos) y QS-06 (idempotencia de los reintentos: exactamente un comprobante por evento aun tras múltiples reenvíos).
+
+---
+
+#### Flujo 4 — Conversión de preventa a cotización y factura
+
+![Diagrama de secuencia — Preventa a factura](../diagramas/secuencia-preventa-a-factura.png)
+*Figura 10 — Secuencia: conversión comercial de preventa → cotización → factura, con caminos de error de negocio (preventa ya convertida, cotización vencida). Código fuente en `/diagramas/secuencia-preventa-a-factura.mmd`.*
+
+**Descripción:** Este flujo enlaza el diferenciador del producto (Flujo 2) con el núcleo del dominio (Flujo 1), mostrando cómo una preventa recibida por handoff se transforma en una factura fiscal **solo por acción interna** de un usuario autorizado —nunca por el Motor de Automatización (REST-05)—. El Vendedor abre la preventa y solicita convertirla en cotización; la API valida rol y `tenant_id` contra el Identity Provider y, **en una única transacción**, crea la cotización y marca la preventa como convertida. **Camino de error 1 (preventa ya convertida):** si la preventa ya tiene cotización —doble clic, reintento— la API responde `409 Conflict` sin crear un duplicado. Tras la aprobación del cliente, el Vendedor emite la factura desde la cotización: si está vigente, la API crea la factura (`emitida_local`) y el evento outbox `emitir_comprobante`, respondiendo `202` y **entregando el control al Flujo 1** para la emisión fiscal end-to-end. **Camino de error 2 (cotización inválida):** si la cotización está vencida o ya fue facturada, responde `422 Unprocessable Entity`. Así, la frontera entre lo comercial (reversible, editable) y lo fiscal (regulado, con consecuencia legal) queda explícita en el flujo.
+
+**Escenarios de calidad que este flujo valida:** QS-01 (autorización por rol y tenant en cada transición de estado comercial) y QS-06 (la conversión de una preventa produce exactamente una cotización aunque la acción se reintente).
+
+---
+
+#### Flujo 5 — Corrección tras rechazo de Hacienda e invariante de inmutabilidad
+
+![Diagrama de secuencia — Corrección tras rechazo](../diagramas/secuencia-correccion-rechazo.png)
+*Figura 11 — Secuencia: corrección mediante nota de crédito/débito tras un rechazo de Hacienda, y bloqueo del intento de modificar un comprobante aceptado. Código fuente en `/diagramas/secuencia-correccion-rechazo.mmd`.*
+
+**Descripción:** Este flujo cierra el ciclo de vida del comprobante (ver la máquina de estados de la Figura 1) para el caso de rechazo. El Asistente Administrativo revisa un comprobante en estado `Rechazado` y su código de motivo. **Camino de corrección válido:** inicia una corrección que **no modifica el documento original** —irreversible por diseño— sino que emite una **nota de crédito/débito** que lo referencia; esta nota se crea con su propio `event_id` en una transacción con outbox y reutiliza el Flujo 1 para su emisión y validación ante Hacienda. **Camino de error (invariante de inmutabilidad):** si un usuario intenta editar o eliminar una factura ya `Aceptada`, la API valida la invariante de la sección 1.6 y responde `409 Conflict` explicando que un comprobante aceptado es irreversible y solo se corrige con una nota; además, **el intento rechazado también se audita** (append-only, RF-05), de modo que queda trazado incluso lo que no se permitió ejecutar.
+
+**Escenarios de calidad que este flujo valida:** RF-05 (auditoría de acciones, incluidos los intentos bloqueados) y QS-06 (la nota de corrección se emite exactamente una vez por evento), apoyándose en la invariante de inmutabilidad del comprobante aceptado (sección 1.6).
 
 ---
 
@@ -705,12 +798,29 @@ Los dos flujos seleccionados son los más importantes del sistema porque cubren,
 >
 > **Instrucciones:** Mostrá los nodos de infraestructura, qué artefactos de software corren en cada nodo, y las conexiones de red entre ellos con el protocolo indicado. Si usás servicios cloud, nombralos específicamente (ej. AWS RDS, Google Cloud Run, Azure Service Bus).
 
+#### 7.4.1 Estrategia de despliegue y su justificación
+
+La topología se elige en coherencia con el estilo arquitectónico (sección 8: *service-based* con núcleo de monolito modular) y, sobre todo, con la restricción **REST-06** (equipo de 3 personas, presupuesto limitado). Por eso el sistema se despliega como **contenedores Docker orquestados con Docker Compose sobre dos VMs cloud** (una de aplicación y una de datos), y **no** sobre Kubernetes ni sobre un stack de PaaS gestionado: Kubernetes excede la capacidad operativa del equipo (mismo argumento que descarta microservicios en la sección 8.2) y el PaaS gestionado introduce costo recurrente que el presupuesto no soporta. Docker Compose es la representación más honesta porque los "contenedores" de la vista 7.2 (que en C4 son unidades lógicas) se materializan aquí como contenedores Docker reales, uno por unidad desplegable, con un mapeo casi 1:1.
+
+La separación en **dos nodos** no es cosmética: aísla el plano de cómputo (servicios sin estado, reiniciables y escalables verticalmente) del plano de datos (con estado y volúmenes persistentes), de modo que un reinicio o redeploy de la VM de Aplicación no arriesga la integridad de la BD transaccional, la auditoría append-only ni los documentos fiscales que deben conservarse ≥ 5 años (REST-02).
+
+#### 7.4.2 Diagrama
+
 ![Vista de despliegue](../diagramas/despliegue.png)
-*Figura N — Vista de despliegue del sistema [Nombre]*
+*Figura 12 — Vista de despliegue (VM cloud + Docker Compose) del sistema SmartBilling Connect. Código fuente en `/diagramas/despliegue.mmd`.*
+
+#### 7.4.3 Descripción de nodos
 
 | Nodo | Descripción | Artefactos desplegados | Conectividad |
 |---|---|---|---|
-| [Nombre del nodo] | [ej. Servidor de aplicación en AWS EC2 t3.medium] | [ej. API REST — Java 21 / Spring Boot] | [ej. HTTPS/443 hacia clientes, JDBC/5432 hacia BD] |
+| **VM de Aplicación** | VM Linux (≈2 vCPU / 4 GB) con Docker Engine. Aloja los servicios sin estado y la puerta de entrada. Escala verticalmente; los servicios pueden replicarse con más réplicas de contenedor. | `nginx` (reverse proxy + terminación TLS), SPA (build estático servido por nginx), API de Aplicación (ASP.NET Core 8), Servicio de Facturación Fiscal (ASP.NET Core 8), Procesador Asíncrono (.NET Worker Service), Keycloak, RabbitMQ (con volumen durable) | Entrante: HTTPS/443 desde navegadores y desde el Motor de Automatización (handoff). Interno: HTTP a SPA/API, OIDC/JWKS a Keycloak, AMQP/5672 a RabbitMQ. Hacia VM de Datos: TDS/1433 (TLS) y S3/9000 (HTTPS). Saliente: HTTPS/443 a Hacienda, SMTP/587 al correo. |
+| **VM de Datos** | VM Linux (≈2 vCPU / 8 GB) con Docker Engine y **volúmenes persistentes**. Aloja todo el estado del sistema. Se respalda de forma independiente. | SQL Server (Express/Developer) con la BD transaccional, el esquema de auditoría append-only y la BD interna de Keycloak; MinIO (almacén compatible S3, retención ≥ 5 años) | Entrante: TDS/1433 (TLS) desde API, Servicio Fiscal, Workers y Keycloak; API S3/9000 (HTTPS) desde el Servicio Fiscal. Sin exposición a Internet: solo accesible desde la VM de Aplicación (red privada). |
+| **Dispositivos de usuario** *(fuera del sistema)* | Navegadores de los usuarios internos (Dueño de PYME, Vendedor, Asistente). | SPA cargada en el navegador | HTTPS/443 hacia el `nginx` de la VM de Aplicación. |
+| **API Ministerio de Hacienda CR** *(externo)* | Autoridad fiscal. | — | Recibe XML firmado sobre HTTPS/443 desde el Servicio Fiscal. |
+| **Motor de Automatización (+ Meta/TikTok)** *(externo)* | Capa de captación social. | — | HTTPS/443 hacia la API (handoff de preventa, autenticado e idempotente). |
+| **Servicio de Correo (SMTP)** *(externo)* | Entrega de comprobantes y notificaciones. | — | SMTP/587 (TLS) desde el Procesador Asíncrono. |
+
+**Consideraciones de despliegue relacionadas con los drivers.** (a) *Seguridad (QA-01):* solo la VM de Aplicación tiene interfaz pública; la VM de Datos vive en red privada y nunca se expone a Internet, y todo tráfico externo pasa por la terminación TLS de nginx. (b) *Disponibilidad (QA-02):* RabbitMQ usa un volumen durable para que los eventos encolados sobrevivan a un reinicio del contenedor (medida de QS-02), y el plano de datos, al estar aislado, no se ve afectado por redeploys del plano de cómputo. (c) *Costo (REST-06):* todo el stack corre sobre software gratuito/OSS y dos VMs modestas, sin servicios gestionados de pago. (d) *Evolución:* si en el futuro un servicio (p. ej. el Servicio Fiscal) necesitara escalar de forma independiente, este esquema permite moverlo a su propia VM o a más réplicas sin rediseñar la arquitectura lógica —los contenedores ya están aislados y se comunican por protocolos explícitos—.
 
 ---
 
@@ -723,9 +833,58 @@ Los dos flujos seleccionados son los más importantes del sistema porque cubren,
 >
 > **Instrucciones:** Describí el modelo de concurrencia del sistema: qué procesos o hilos existen, cómo se sincronizan, qué recursos comparten, y cómo se evitan condiciones de carrera o deadlocks. Referenciá los escenarios de calidad de la sección 4 que este modelo satisface.
 
-**¿Aplica esta sección?** [Sí / No — y justificación]
+**¿Aplica esta sección? Sí.** SmartBilling Connect es un sistema concurrente por diseño: el Procesador Asíncrono corre como uno o más workers (`BackgroundService`) que compiten por procesar el outbox y los eventos del broker en paralelo con los hilos de request de la API; varios usuarios de un mismo tenant pueden operar simultáneamente sobre los mismos comprobantes; y el sistema recibe eventos externos potencialmente duplicados (RF-06). Existen, por tanto, recursos compartidos (tabla outbox, filas de `Comprobante`, colas del broker) y posibles condiciones de carrera. Omitir esta sección sería deshonesto; el modelo de concurrencia es precisamente lo que hace correctos a los patrones outbox e idempotencia.
 
-*(Si aplica, completar con diagrama y descripción)*
+#### 7.5.1 Diagrama del modelo de concurrencia
+
+![Modelo de concurrencia](../diagramas/concurrencia-outbox.png)
+*Figura 13 — Modelo de concurrencia: relay de outbox, competing consumers y control de concurrencia (actividad con swimlanes). Código fuente en `/diagramas/concurrencia-outbox.mmd`. La máquina de estados del comprobante que estos procesos hacen avanzar está en la Figura 1.*
+
+#### 7.5.2 Procesos, recursos compartidos y sincronización
+
+| Aspecto | Cómo se resuelve | Driver / escenario |
+|---|---|---|
+| **Hilos/procesos concurrentes** | Hilos de request de la API y del Servicio Fiscal + N workers del Procesador Asíncrono (competing consumers) + consumidores del broker. Cada unidad es sin estado; el estado vive en la BD y el broker. | QA-04, REST-06 |
+| **Publicación fiable de eventos** | Patrón *Transactional Outbox* (ADR-002): el cambio de negocio y el evento se escriben en **una sola transacción**; ningún evento se publica si la transacción no commitea, y ninguno se pierde si el proceso cae tras el commit. | QS-04, QS-02 |
+| **Relay concurrente del outbox** | Los workers reclaman filas por lote con **bloqueo de fila** (`UPDATE TOP(k) … WITH (UPDLOCK, READPAST)`): dos workers nunca toman la misma fila y un worker no espera por filas ya reclamadas por otro (sin contención ni doble publicación). | QS-06 |
+| **Entrega a consumidores** | RabbitMQ con **colas durables** y *competing consumers* con *ack* manual y *prefetch*: cada mensaje lo procesa exactamente un consumidor; si este falla antes del *ack*, el mensaje se re-entrega. | QS-02, QS-06 |
+| **Idempotencia de efectos** | `IdempotencyGuard` deduplica por `event_id` / `Idempotency-Key` antes de aplicar cualquier efecto de negocio: reentregas y duplicados producen **exactamente un** comprobante, notificación o entrada de auditoría. | QS-06, RF-06 |
+| **Actualización concurrente de comprobantes** | **Concurrencia optimista** (columna `rowversion`) sobre `Comprobante`: si dos flujos intentan transicionar el mismo comprobante, el segundo detecta el conflicto de versión y reintenta sobre el estado fresco, evitando transiciones inconsistentes. | QS-01, integridad fiscal |
+| **Orden y reintentos ante fallos** | `RetryPolicy + CircuitBreaker` con backoff exponencial y reproceso **FIFO**; ante fallo aguas abajo se hace *nack*/re-encola sin romper el orden ni perder el mensaje. | QS-02 |
+| **Prevención de deadlocks** | Las transacciones son cortas y de alcance mínimo (escribir dominio + outbox y commitear); el trabajo lento (Hacienda, correo, S3) ocurre **fuera** de la transacción, en los consumidores. Al no anidar transacciones largas ni tomar múltiples bloqueos en distinto orden, no hay ciclos de espera. | QA-04 |
+
+**Cómo se evitan las condiciones de carrera clave.** (1) *Doble emisión:* aunque dos workers relayen o dos eventos duplicados lleguen, la deduplicación por `event_id` más la máquina de estados garantizan un solo comprobante (QS-06). (2) *Doble toma de outbox:* el bloqueo de fila con `READPAST` reparte el trabajo sin solapamiento. (3) *Transición de estado inconsistente:* la concurrencia optimista con `rowversion` hace que solo una transición gane y la otra reintente. Este modelo satisface QS-02 (recuperación sin pérdida), QS-04 (auditoría sin penalizar el camino crítico) y QS-06 (exactamente un efecto por evento).
+
+---
+
+### 7.6 Evolución del diseño entre avances
+
+> Esta subsección documenta cómo evolucionaron las vistas arquitectónicas entre los tres hitos (Propuesta S03 → Avance 1 S07 → Avance 2 S11 → Entrega final S14), qué se mantuvo estable y por qué, y qué se agregó en cada paso. Complementa el *Historial de versiones* del encabezado con el detalle de las decisiones de diseño.
+
+#### 7.6.1 Trazabilidad de vistas por hito
+
+| Vista | Propuesta (0.1) | Avance 1 (0.2) | Avance 2 (0.3) | Entrega final (1.0) |
+|---|---|---|---|---|
+| 7.1 Contexto | Idea inicial del sistema | **Creada** (C4 nivel 1 + fronteras de confianza) | Sin cambios estructurales | Refinada: explícito que Meta/TikTok solo llegan vía el Motor |
+| 7.2 Contenedores | — | — | **Creada** (C4 nivel 2, 9 contenedores + stack) | Consolidada su consistencia con contexto y componentes |
+| 7.2.4 Componentes | — | — | — | **Creada** (C4 nivel 3: Servicio Fiscal y Procesador Asíncrono) |
+| 7.3 Comportamiento | — | — | **Creada** (2 flujos: emisión y handoff) | Completada a **5 flujos** con caminos de error |
+| 7.4 Despliegue | — | — | — | **Creada** (VM cloud + Docker Compose, 2 nodos) |
+| 7.5 Concurrencia | — | — | — | **Creada** (outbox, competing consumers, concurrencia optimista) |
+
+#### 7.6.2 Decisiones que cambiaron o se refinaron
+
+| Cambio | De → A | Motivación |
+|---|---|---|
+| Frontera del Motor de Automatización | Implícita (Avance 1) → explícita y repetida en todas las vistas (7.1, 7.2, 7.3, ciclo de vida) | Evitar que se leyera al Motor como participante fiscal; endurece REST-05 y la frontera de la sección 3.4. |
+| Aislamiento del dominio fiscal | Módulo dentro del sistema (Propuesta) → **contenedor propio** (Avance 2, ADR-001) → **componentes detallados** (Entrega final, 7.2.4) | Convertir una convención en una barrera arquitectónica verificable (QA-01, QS-05). |
+| Comunicación entre partes | Llamadas directas (implícito) → **outbox + broker asíncrono** (Avance 2, ADR-002) → **modelo de concurrencia formalizado** (Entrega final, 7.5) | Resolver la tensión seguridad/rendimiento (QS-01/QS-04) y la idempotencia (RF-06/QS-06) sin bloquear el request. |
+| Comportamiento cubierto | 2 flujos felices + degradación (Avance 2) → **5 flujos con recuperación, conversión y corrección** (Entrega final) | Cubrir el camino de error extremo a extremo, no solo dejarlo encolado. |
+| Despliegue | No definido → **Docker Compose sobre 2 VMs** (Entrega final) | Coherencia con REST-06: la opción operable por 3 personas, descartando K8s y PaaS de pago. |
+
+#### 7.6.3 Qué se mantuvo estable (y por qué es una buena señal)
+
+Lo más importante de la evolución es lo que **no** cambió: los actores y sistemas externos de la vista de contexto (7.1) son los mismos desde Avance 1, y los nueve contenedores de Avance 2 se conservan sin altas ni bajas en la Entrega final. Las vistas nuevas (componentes, despliegue, concurrencia) **descomponen** lo ya definido en lugar de contradecirlo: cada dependencia de la vista de componentes existe ya a nivel de contenedor, y cada nodo de despliegue aloja exactamente los contenedores de 7.2. Esa estabilidad —agregar detalle sin reabrir decisiones— es evidencia de que los drivers de la sección 3 fueron suficientes para fijar la arquitectura temprano, en línea con los principios KISS/YAGNI de la sección 6.
 
 ---
 
@@ -824,7 +983,7 @@ Los dos flujos seleccionados son los más importantes del sistema porque cubren,
 #### 10.1.1 Diagrama de clases de diseño
 
 ![Diagrama de clases — Servicio de Facturación Fiscal](../diagramas/clases-servicio-facturacion-fiscal.png)
-*Figura 7 — Diagrama de clases de diseño: Servicio de Facturación Fiscal. Código fuente en `/diagramas/clases-servicio-facturacion-fiscal.mmd`.*
+*Figura 14 — Diagrama de clases de diseño: Servicio de Facturación Fiscal. Código fuente en `/diagramas/clases-servicio-facturacion-fiscal.mmd`.*
 
 Separamos el punto de entrada (`FiscalInvoiceController`, boundary) de la orquestación (`FiscalInvoiceService`, control) y de los detalles de infraestructura, cada uno detrás de su propia interfaz: `IXmlComprobanteBuilder` para construir el XML (intercambiable según la versión del esquema, pensando en QS-05), `ISignatureProvider` para la firma digital, `IHaciendaClient` para hablar con Hacienda (con su política de reintentos y circuit breaker) y `IComprobanteRepository` / `IOutboxWriter` para la parte de persistencia y outbox que se explica en ADR-002. `ComprobanteStateMachine` concentra las transiciones válidas del comprobante (Generado → Firmado → Enviado → Aceptado / Rechazado / PendienteValidacionHacienda) para que esa lógica no termine repartida por todo el servicio. Gracias a esta separación por interfaces, si Hacienda cambia el esquema el año que viene, en principio bastaría con reemplazar `XmlComprobanteBuilderV44` sin tocar `FiscalInvoiceService` ni el resto — que es más o menos lo que promete QS-05.
 
@@ -861,9 +1020,9 @@ Separamos el punto de entrada (`FiscalInvoiceController`, boundary) de la orques
 #### 10.1.4 Diagrama de secuencia — flujo principal
 
 ![Secuencia — Emisión de comprobante fiscal](../diagramas/secuencia-emision-comprobante-fiscal.png)
-*Figura 8 — Secuencia: emisión de comprobante fiscal, camino feliz y camino de error (timeout de Hacienda). Código fuente en `/diagramas/secuencia-emision-comprobante-fiscal.mmd`.*
+*Figura 15 — Secuencia: emisión de comprobante fiscal, camino feliz y camino de error (timeout de Hacienda). Código fuente en `/diagramas/secuencia-emision-comprobante-fiscal.mmd`.*
 
-**Descripción:** La API de Aplicación llama a `FiscalInvoiceController`, que delega en `FiscalInvoiceService`. Este diagrama detalla el interior del componente; en el flujo extremo a extremo de la Figura 5, la solicitud de emisión llega al servicio como evento AMQP (`emitir_comprobante`) relevado desde el outbox — ese consumidor AMQP delega en el mismo `FiscalInvoiceService` que el endpoint REST interno mostrado aquí, por lo que ambas entradas comparten idéntica validación, idempotencia y máquina de estados. El servicio valida la solicitud, construye el XML, lo firma, pasa el comprobante a estado `Firmado` y lo guarda junto con su evento de auditoría en la misma transacción (el patrón outbox de ADR-002), devolviendo `202 Accepted` sin esperar a Hacienda. Por otro lado, el servicio envía el comprobante a Hacienda: si todo sale bien, Hacienda responde a tiempo y el comprobante pasa a `Aceptado`. Si Hacienda no responde o falla (timeout o HTTP 5xx sostenido, el caso que cubre QS-02), el comprobante pasa a `PendienteValidacionHacienda` y queda en cola para reintentarse en orden FIFO, sin que el usuario note más de los 2 segundos de degradación que permite ese mismo escenario.
+**Descripción:** La API de Aplicación llama a `FiscalInvoiceController`, que delega en `FiscalInvoiceService`. Este diagrama detalla el interior del componente; en el flujo extremo a extremo de la Figura 7, la solicitud de emisión llega al servicio como evento AMQP (`emitir_comprobante`) relevado desde el outbox — ese consumidor AMQP delega en el mismo `FiscalInvoiceService` que el endpoint REST interno mostrado aquí, por lo que ambas entradas comparten idéntica validación, idempotencia y máquina de estados. El servicio valida la solicitud, construye el XML, lo firma, pasa el comprobante a estado `Firmado` y lo guarda junto con su evento de auditoría en la misma transacción (el patrón outbox de ADR-002), devolviendo `202 Accepted` sin esperar a Hacienda. Por otro lado, el servicio envía el comprobante a Hacienda: si todo sale bien, Hacienda responde a tiempo y el comprobante pasa a `Aceptado`. Si Hacienda no responde o falla (timeout o HTTP 5xx sostenido, el caso que cubre QS-02), el comprobante pasa a `PendienteValidacionHacienda` y queda en cola para reintentarse en orden FIFO, sin que el usuario note más de los 2 segundos de degradación que permite ese mismo escenario.
 
 **Escenarios de calidad que este flujo valida:** QS-01 (autorización por tenant antes de cualquier operación), QS-02 (degradación controlada si Hacienda falla), QS-04 (auditoría transaccional vía outbox), QS-05 (el módulo de XML queda aislado detrás de una interfaz) y QS-06 (idempotencia de los reintentos).
 

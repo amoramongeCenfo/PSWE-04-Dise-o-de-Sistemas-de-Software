@@ -1,0 +1,38 @@
+---
+title: Flujo 3 — Recuperación asíncrona tras indisponibilidad de Hacienda (reintento FIFO idempotente)
+---
+sequenceDiagram
+    autonumber
+    participant WORKER as Procesador Asíncrono<br/>(RetryPolicy + CircuitBreaker)
+    participant BROKER as Broker<br/>(RabbitMQ — cola reintentos)
+    participant FISCAL as Servicio de<br/>Facturación Fiscal
+    participant DBTX as BD Transaccional
+    participant HAC as API Ministerio de<br/>Hacienda CR
+    participant DBAUD as Almacén de<br/>Auditoría
+    participant MAIL as Servicio de<br/>Correo
+
+    Note over WORKER,HAC: Estado inicial: N comprobantes en "pendiente_validacion_hacienda"<br/>encolados en orden FIFO tras el timeout/5xx del Flujo 1 (QS-02)
+
+    loop backoff exponencial mientras circuito ABIERTO
+        WORKER->>WORKER: espera (2^n, con jitter)
+        WORKER->>HAC: sonda (health / reintento del primero de la cola)
+        alt Hacienda sigue caída — camino de error
+            HAC-->>WORKER: timeout / 5xx
+            WORKER->>WORKER: circuito permanece ABIERTO<br/>(comprobantes NO se pierden — cola durable)
+        else Hacienda responde — recuperación
+            HAC-->>WORKER: 200 OK (sonda exitosa)
+            WORKER->>WORKER: circuito → SEMIABIERTO → CERRADO
+        end
+    end
+
+    Note over WORKER,BROKER: Servicio restaurado — se drena la cola en orden FIFO
+    loop por cada comprobante pendiente (FIFO)
+        BROKER->>FISCAL: entrega "emitir_comprobante" (event_id)
+        FISCAL->>FISCAL: verifica idempotencia por event_id (QS-06)<br/>— si ya fue aceptado, no reenvía
+        FISCAL->>HAC: reenvía XML firmado (HTTPS)
+        HAC-->>FISCAL: aceptado / rechazado
+        FISCAL->>DBTX: actualiza estado definitivo (concurrencia optimista)<br/>+ outbox "estado_fiscal_actualizado"
+        WORKER->>DBAUD: INSERT append-only (actor=sistema, tenant, ts, hash)
+        WORKER->>MAIL: envía comprobante al cliente (SMTP)
+    end
+    Note over FISCAL,MAIL: Recuperación completa sin intervención manual<br/>ni comprobantes duplicados (RF-06 / QS-06)

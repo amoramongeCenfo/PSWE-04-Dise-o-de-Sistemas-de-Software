@@ -1,0 +1,36 @@
+---
+title: Flujo 5 — Corrección tras rechazo de Hacienda (nota de crédito/débito) e invariante de inmutabilidad
+---
+sequenceDiagram
+    autonumber
+    actor ASIS as Asistente Administrativo
+    participant SPA as Aplicación Web (SPA)
+    participant API as API de Aplicación
+    participant FISCAL as Servicio de<br/>Facturación Fiscal
+    participant DBTX as BD Transaccional
+    participant HAC as API Ministerio de<br/>Hacienda CR
+    participant DBAUD as Almacén de<br/>Auditoría
+
+    Note over FISCAL,DBTX: Punto de partida: un comprobante quedó en estado "Rechazado"<br/>(Hacienda lo rechazó en el Flujo 1)
+
+    ASIS->>SPA: revisa comprobante rechazado y motivo
+    SPA->>API: GET /api/v1/facturas/{id}
+    API-->>SPA: detalle + estado "rechazada" + código de rechazo
+
+    alt corrección válida — emitir nota de crédito/débito
+        ASIS->>SPA: inicia corrección (nota de crédito/débito)
+        SPA->>API: POST /api/v1/notas (facturaRef, tipo, motivo)
+        API->>DBTX: TX única: crea nota que REFERENCIA al comprobante original<br/>+ outbox "emitir_comprobante" (nuevo event_id)
+        API-->>SPA: 202 Accepted — corrección en proceso
+        Note over API,FISCAL: emisión de la nota reutiliza el Flujo 1<br/>(el original NO se modifica — se compensa con un documento nuevo)
+        FISCAL->>HAC: envía nota firmada (XML/HTTPS)
+        HAC-->>FISCAL: aceptado
+        FISCAL->>DBTX: nota "aceptada" + vínculo al original (concurrencia optimista)
+        FISCAL->>DBAUD: INSERT append-only (actor, tenant, ts, hash de la nota)
+    else intento de editar/eliminar comprobante ACEPTADO — bloqueado
+        ASIS->>SPA: intenta modificar una factura ya aceptada
+        SPA->>API: PUT /api/v1/facturas/{id}
+        API->>DBTX: valida invariante de inmutabilidad (1.6)
+        API-->>SPA: 409 Conflict — "un comprobante aceptado es irreversible —<br/>solo se corrige con nota de crédito/débito"
+        API->>DBAUD: INSERT append-only del intento rechazado (RF-05)
+    end
