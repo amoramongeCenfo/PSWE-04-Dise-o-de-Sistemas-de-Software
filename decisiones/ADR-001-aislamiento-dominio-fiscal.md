@@ -14,7 +14,14 @@ Otro problema que teníamos encima era QS-05: Hacienda cambia el esquema XML cad
 
 **Decisión**
 
-Separamos todo lo fiscal (armar el XML, firmarlo con XADES-EPES, la máquina de estados del comprobante y la comunicación con Hacienda) en su propio contenedor: el Servicio de Facturación Fiscal. Solo la API de Aplicación puede llamarlo, por REST interno. El motor de automatización nunca tiene una ruta de red hacia este servicio, ni la va a tener.
+Separamos todo lo fiscal (armar el XML, firmarlo con XADES-EPES, la máquina de estados del comprobante y la comunicación con Hacienda) en su propio contenedor: el Servicio de Facturación Fiscal.
+
+El servicio solo es alcanzable **desde dentro del sistema**, por dos puntos de entrada que convergen en el mismo orquestador (`IFiscalInvoiceService`), de modo que validación, idempotencia y máquina de estados se aplican por igual entre por donde entre la solicitud:
+
+1. **REST interno**, consumido por la API de Aplicación y, para el reenvío puntual de un comprobante pendiente, por el Procesador Asíncrono.
+2. **Consumidor AMQP** (`FiscalEventConsumer`), que toma el evento `emitir_comprobante` relevado desde el outbox — la ruta normal de la emisión y del reintento FIFO tras una caída de Hacienda.
+
+Lo que no cambia es la frontera: el motor de automatización nunca tiene una ruta de red hacia este servicio, ni la va a tener, y su token carece del alcance `facturacion:write`.
 
 **Alternativas consideradas**
 
