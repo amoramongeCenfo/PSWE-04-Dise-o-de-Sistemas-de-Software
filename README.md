@@ -17,7 +17,7 @@ Plataforma de facturación electrónica inteligente para PYMES que venden por re
 | **URL del repositorio** | https://github.com/amoramongeCenfo/PSWE-04-Dise-o-de-Sistemas-de-Software |
 | **Docente** | Juan Mauricio Leandro Jiménez |
 | **Cuatrimestre** | 2026 — 02 |
-| **Hito actual** | Avance 2 (S11) — versión 0.3 |
+| **Hito actual** | Entrega final (S14) — versión 1.0 |
 
 ---
 
@@ -58,5 +58,5 @@ Plataforma de facturación electrónica inteligente para PYMES que venden por re
 |---|---|---|---|
 | Propuesta | S03 | Aprobado | [propuesta.md](docs/propuesta.md) |
 | Avance 1 | S07 | Aprobado | [propuesta.md](docs/propuesta.md) — Bloques 1-2 y sección 7.1 |
-| Avance 2 | S11 | En revisión | [propuesta.md](docs/propuesta.md) — Secciones 7.2-7.3, 8, 9 y 10.1 |
-| Entrega final | S14 | Pendiente | — |
+| Avance 2 | S11 | Aprobado | [propuesta.md](docs/propuesta.md) — Secciones 7.2-7.3, 8, 9 y 10.1 |
+| Entrega final | S14 | Entregado | [propuesta.md](docs/propuesta.md) — Documento completo (secciones 1-17) |
