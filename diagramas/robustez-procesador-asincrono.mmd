@@ -1,0 +1,52 @@
+%% Figura 19 - Analisis de robustez (BCE): Procesador Asincrono (Componente 2)
+flowchart LR
+    ACT1(["Reloj del sistema<br/>(disparador periodico)"])
+    ACT2(["Broker RabbitMQ<br/>(actor sistema)"])
+    ACT3(["Servicio de Correo<br/>(actor externo)"])
+    ACT4(["Servicio de Facturacion Fiscal<br/>(Componente 1)"])
+
+    B1["OutboxRelayWorker<br/><i>boundary</i>"]
+    B2["EventConsumerWorker<br/><i>boundary</i>"]
+    B3["RabbitMqPublisher<br/><i>boundary</i>"]
+    B4["SmtpNotificationSender<br/><i>boundary</i>"]
+    B5["FiscalHttpClient<br/><i>boundary</i>"]
+
+    C1(("EventDispatcher<br/><i>control</i>"))
+    C2(("IdempotencyGuard<br/><i>control</i>"))
+    C3(("ResiliencePolicyFactory<br/><i>control</i>"))
+    C4(("AuditEventHandler<br/><i>control</i>"))
+    C5(("NotificationEventHandler<br/><i>control</i>"))
+    C6(("FiscalRetryEventHandler<br/><i>control</i>"))
+
+    E1[("OutboxSqlRepository<br/><i>entity</i>")]
+    E2[("OutboxMessage<br/><i>entity</i>")]
+    E3[("AuditSqlWriter / AuditEntry<br/><i>entity</i>")]
+    E4[("ProcessedEventSqlStore<br/><i>entity</i>")]
+
+    ACT1 --> B1
+    B1 --> E1
+    E1 --> E2
+    B1 --> B3
+    B3 --> ACT2
+    ACT2 -- "evento consumido" --> B2
+    B2 --> C1
+    C1 --> C2
+    C2 --> E4
+    C1 --> C3
+    C1 --> C4
+    C1 --> C5
+    C1 --> C6
+    C4 --> E3
+    C5 --> B4
+    B4 --> ACT3
+    C6 --> B5
+    B5 --> ACT4
+
+    classDef boundary fill:#e8f1fb,stroke:#2f6fb0,stroke-width:1px,color:#123
+    classDef control fill:#fff4e0,stroke:#c98200,stroke-width:1px,color:#123
+    classDef entity fill:#eef7ee,stroke:#3f8f4f,stroke-width:1px,color:#123
+    classDef actor fill:#f2f2f2,stroke:#666,stroke-width:1px,color:#123
+    class B1,B2,B3,B4,B5 boundary
+    class C1,C2,C3,C4,C5,C6 control
+    class E1,E2,E3,E4 entity
+    class ACT1,ACT2,ACT3,ACT4 actor

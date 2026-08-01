@@ -1,0 +1,47 @@
+sequenceDiagram
+    autonumber
+    participant CLK as "Reloj (poll cada 500 ms)"
+    participant RLY as OutboxRelayWorker
+    participant OREP as OutboxSqlRepository
+    participant PUB as RabbitMqPublisher
+    participant MQ as Broker RabbitMQ
+    participant CNS as EventConsumerWorker
+    participant DSP as EventDispatcher
+    participant IDEM as IdempotencyGuard
+    participant AUD as AuditEventHandler
+    participant AW as AuditSqlWriter
+    participant NOT as NotificationEventHandler
+    participant SMTP as Servicio de Correo
+
+    CLK->>RLY: ExecuteAsync (tick)
+    RLY->>OREP: ReclamarLoteAsync(max=100, lease=30 s)
+    note over OREP: UPDATE ... WITH (ROWLOCK, READPAST)<br/>marca lease_hasta y evita que dos workers tomen el mismo lote
+    OREP-->>RLY: OutboxBatch (mensajes no publicados)
+
+    loop por cada OutboxMessage del lote
+        RLY->>PUB: PublicarAsync(mensaje, ct)
+        PUB->>MQ: basic.publish (exchange, routing_key, persistent)
+        MQ-->>PUB: publisher confirm (ack)
+        PUB-->>RLY: true
+        RLY->>OREP: MarcarPublicadoAsync(outbox_id)
+    end
+
+    MQ->>CNS: entrega evento (competing consumers, prefetch=10)
+    CNS->>DSP: DespacharAsync(evento, ct)
+    DSP->>IDEM: TryBeginAsync(event_id)
+    IDEM-->>DSP: true (primera vez)
+    DSP->>DSP: ResolverHandler(tipo_evento)
+
+    par Auditoria (obligatoria - RF-05)
+        DSP->>AUD: ManejarAsync(evento)
+        AUD->>AW: EscribirAsync(AuditEntry con hash encadenado)
+        AW-->>AUD: ok (insert-only)
+    and Notificacion al cliente
+        DSP->>NOT: ManejarAsync(evento)
+        NOT->>SMTP: EnviarAsync(comprobante XML/PDF + estado)
+        SMTP-->>NOT: 250 OK
+    end
+
+    DSP->>IDEM: CompletarAsync(event_id, resultado)
+    DSP-->>CNS: DispatchResult(Ok)
+    CNS->>MQ: basic.ack

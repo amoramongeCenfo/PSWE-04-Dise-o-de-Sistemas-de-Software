@@ -1,0 +1,54 @@
+%% Figura 28 - Aplicacion real del patron Transactional Outbox en SmartBilling Connect
+flowchart TB
+    subgraph ESC["Escritores del outbox - una sola transaccion SQL cada uno"]
+        direction TB
+        subgraph TX3["Transaccion A - API de Aplicacion (10.3)"]
+            direction LR
+            A1["PreventaService<br/>INSERT Preventa[Recibida]"]
+            A2["IdempotencyKeyStore<br/>INSERT clave (indice unico)"]
+            A3["OutboxWriter<br/>INSERT evento preventa_recibida"]
+        end
+        subgraph TX3B["Transaccion B - EmisionOrquestador (10.3)"]
+            direction LR
+            B1["UPDATE Cotizacion[Facturada]<br/>INSERT Factura[emitida_local]"]
+            B2["OutboxWriter<br/>INSERT evento emitir_comprobante"]
+        end
+        subgraph TX1["Transaccion C - Servicio de Facturacion Fiscal (10.1)"]
+            direction LR
+            C1["UPDATE Comprobante[Firmado / Aceptado]<br/>(concurrencia optimista)"]
+            C2["OutboxWriter<br/>INSERT evento de auditoria"]
+        end
+    end
+
+    OBX[("Tabla OUTBOX<br/>en la MISMA base de datos<br/>event_id, tenant_id, tipo, payload,<br/>publicado_en, lease_hasta, intentos")]
+
+    TX3 --> OBX
+    TX3B --> OBX
+    TX1 --> OBX
+
+    RLY["OutboxRelayWorker (10.2)<br/>ReclamarLoteAsync: ROWLOCK + READPAST + lease"]
+    MQ{{"RabbitMQ - cola durable"}}
+    DSP["EventDispatcher + IdempotencyGuard (10.2)"]
+    H1["AuditEventHandler"]
+    H2["NotificationEventHandler"]
+    H3["FiscalRetryEventHandler"]
+    AUD[("Almacen de Auditoria<br/>append-only, hash encadenado")]
+
+    OBX -- "poll cada 500 ms" --> RLY
+    RLY -- "publish + publisher confirm" --> MQ
+    RLY -. "MarcarPublicadoAsync SOLO tras el confirm" .-> OBX
+    MQ --> DSP
+    DSP --> H1 --> AUD
+    DSP --> H2
+    DSP --> H3
+
+    NOTA["Propiedad garantizada: nunca existe un dato de negocio sin su evento durable.<br/>Si el commit falla, no hay ni dato ni evento. Si falla la publicacion, el evento sigue<br/>en la tabla y se reintenta: entrega at-least-once + deduplicacion por event_id = exactamente un efecto."]
+
+    ESC -.-> NOTA
+
+    classDef tx fill:#eef7ee,stroke:#3f8f4f,stroke-width:1px,color:#123
+    classDef infra fill:#e8f1fb,stroke:#2f6fb0,stroke-width:1px,color:#123
+    classDef nota fill:#fff8e6,stroke:#c98200,stroke-width:1px,color:#123
+    class A1,A2,A3,B1,B2,C1,C2 tx
+    class RLY,DSP,H1,H2,H3,OBX,AUD,MQ infra
+    class NOTA nota

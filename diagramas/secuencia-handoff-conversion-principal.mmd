@@ -1,0 +1,68 @@
+sequenceDiagram
+    autonumber
+    participant MOT as Motor de Automatizacion
+    participant MW as TenantAuthorizationMiddleware
+    participant PC as PreventaController
+    participant PS as PreventaService
+    participant IDS as IdempotencyKeySqlStore
+    participant PREP as PreventaRepository
+    participant OBX as OutboxWriter
+    participant VEN as "Vendedor (SPA)"
+    participant CC as CotizacionController
+    participant CS as CotizacionService
+    participant POL as CotizacionPolicy
+    participant CREP as CotizacionRepository
+    participant EO as EmisionOrquestador
+
+    MOT->>MW: POST /api/v1/preventas (OAuth2 client credentials, Idempotency-Key)
+    MW->>MW: valida JWT, resuelve tenant_id y exige alcance preventas:write
+    note over MW: El token de integracion NO tiene alcance fiscal (REST-05)
+    MW->>PC: request autorizado
+    PC->>PS: RecibirPreventaAsync(request, idempotencyKey, ct)
+
+    rect rgb(235, 244, 235)
+    note over PS,OBX: Una sola transaccion SQL (patron Outbox - ADR-002)
+    PS->>IDS: TryRegistrarAsync(clave, tenant_id, tx)
+    IDS-->>PS: true (clave nueva)
+    PS->>PREP: AgregarAsync(Preventa[Recibida], tx)
+    PS->>OBX: EscribirEnTransaccionAsync(evento preventa_recibida, tx)
+    OBX-->>PS: ok (commit)
+    end
+
+    PS-->>PC: PreventaResult(preventa_id)
+    PC-->>MOT: 201 Created
+
+    VEN->>MW: POST /api/v1/preventas/{id}/cotizacion (JWT de usuario, rol vendedor)
+    MW->>CC: request autorizado (tenant_id del token)
+    CC->>CS: ConvertirPreventaAsync(preventaId, request, ct)
+    CS->>PREP: ObtenerAsync(preventaId, tenantId)
+    PREP-->>CS: Preventa[Recibida]
+    CS->>POL: CalcularTotales(lineas)
+    POL-->>CS: Totales
+
+    rect rgb(235, 244, 235)
+    note over CS,OBX: Misma transaccion: se crea la cotizacion y se marca la preventa
+    CS->>CREP: AgregarAsync(Cotizacion[Borrador], tx)
+    CS->>PREP: ActualizarAsync(Preventa[Convertida], rowVersion)
+    CS->>OBX: EscribirEnTransaccionAsync(evento auditoria, tx)
+    end
+
+    CS-->>CC: CotizacionDto
+    CC-->>VEN: 201 Created
+
+    VEN->>CC: POST /api/v1/cotizaciones/{id}/factura (cotizacion aprobada)
+    CC->>EO: EmitirDesdeCotizacionAsync(cotizacionId, ct)
+    EO->>CREP: ObtenerAsync(cotizacionId, tenantId)
+    CREP-->>EO: Cotizacion[Aprobada]
+    EO->>POL: EsFacturable(cotizacion, ahora)
+    POL-->>EO: true (vigente y no facturada)
+
+    rect rgb(235, 244, 235)
+    note over EO,OBX: Factura local + evento emitir_comprobante en la misma transaccion
+    EO->>CREP: MarcarFacturada(cotizacion, tx)
+    EO->>OBX: EscribirEnTransaccionAsync(evento emitir_comprobante con event_id, tx)
+    end
+
+    EO-->>CC: EmisionAceptadaDto(factura_id, estado emitida_local)
+    CC-->>VEN: 202 Accepted
+    note over EO: El control pasa al Componente 2 (relay del outbox)<br/>y luego al Componente 1 (emision fiscal ante Hacienda)

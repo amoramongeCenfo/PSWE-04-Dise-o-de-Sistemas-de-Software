@@ -1,0 +1,61 @@
+%% Figura 26 - Aplicacion real del patron Strategy en el Servicio de Facturacion Fiscal
+classDiagram
+    direction LR
+
+    class FiscalInvoiceService {
+        <<control - contexto del Strategy>>
+        -IXmlComprobanteBuilderResolver _resolverBuilder
+        -ISignatureProvider _firmador
+        +EmitirComprobanteAsync(ComprobanteRequest request, CancellationToken ct) Task~ComprobanteResult~
+    }
+    note for FiscalInvoiceService "No contiene ningun if ni switch por version de esquema<br/>ni por estandar de firma: solo conoce las interfaces."
+
+    class XmlBuilderResolver {
+        <<factory de seleccion>>
+        -IEnumerable~IXmlComprobanteBuilder~ _builders
+        +Resolver(string versionEsquema) IXmlComprobanteBuilder
+    }
+
+    class IXmlComprobanteBuilder {
+        <<interface - Strategy>>
+        +Version() string
+        +ConstruirXml(ComprobanteRequest request) string
+    }
+    class XmlComprobanteBuilderV43 {
+        <<estrategia concreta - vigente hasta migracion>>
+        +Version() string
+        +ConstruirXml(ComprobanteRequest request) string
+    }
+    class XmlComprobanteBuilderV44 {
+        <<estrategia concreta - esquema actual>>
+        +Version() string
+        +ConstruirXml(ComprobanteRequest request) string
+    }
+    class XmlComprobanteBuilderV45 {
+        <<estrategia futura - se agrega sin tocar el contexto>>
+        +Version() string
+        +ConstruirXml(ComprobanteRequest request) string
+    }
+
+    class ISignatureProvider {
+        <<interface - Strategy>>
+        +Firmar(string xmlContent, X509Certificate2 certificado) XmlFirmado
+    }
+    class XadesEpesSignatureProvider {
+        <<estrategia concreta - estandar exigido por REST-01>>
+        +Firmar(string xmlContent, X509Certificate2 certificado) XmlFirmado
+    }
+    class FakeSignatureProvider {
+        <<estrategia de pruebas - entorno de sandbox>>
+        +Firmar(string xmlContent, X509Certificate2 certificado) XmlFirmado
+    }
+
+    FiscalInvoiceService ..> XmlBuilderResolver : Resolver(version del tenant)
+    FiscalInvoiceService ..> IXmlComprobanteBuilder : ConstruirXml()
+    FiscalInvoiceService ..> ISignatureProvider : Firmar()
+    XmlBuilderResolver ..> IXmlComprobanteBuilder : selecciona 1 de N
+    XmlComprobanteBuilderV43 ..|> IXmlComprobanteBuilder
+    XmlComprobanteBuilderV44 ..|> IXmlComprobanteBuilder
+    XmlComprobanteBuilderV45 ..|> IXmlComprobanteBuilder
+    XadesEpesSignatureProvider ..|> ISignatureProvider
+    FakeSignatureProvider ..|> ISignatureProvider

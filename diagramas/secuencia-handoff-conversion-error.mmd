@@ -1,0 +1,59 @@
+sequenceDiagram
+    autonumber
+    participant MOT as Motor de Automatizacion
+    participant VEN as "Vendedor (SPA)"
+    participant MW as TenantAuthorizationMiddleware
+    participant PC as PreventaController
+    participant CC as CotizacionController
+    participant PS as PreventaService
+    participant CS as CotizacionService
+    participant EO as EmisionOrquestador
+    participant IDS as IdempotencyKeySqlStore
+    participant PREP as PreventaRepository
+    participant POL as CotizacionPolicy
+    participant OBX as OutboxWriter
+
+    alt A. Handoff duplicado - misma Idempotency-Key (QS-06)
+        MOT->>MW: POST /api/v1/preventas (Idempotency-Key ya usada)
+        MW->>PC: request autorizado
+        PC->>PS: RecibirPreventaAsync(request, idempotencyKey)
+        PS->>IDS: TryRegistrarAsync(clave, tenant_id, tx)
+        IDS-->>PS: false (violacion de indice unico)
+        PS->>IDS: ObtenerResultadoAsync(clave, tenant_id)
+        IDS-->>PS: PreventaResult previo
+        PS-->>PC: mismo resultado, sin efecto nuevo
+        PC-->>MOT: 200 OK (idempotente, no crea segunda preventa)
+    else B. El motor intenta cruzar al dominio fiscal (REST-05)
+        MOT->>MW: POST /api/v1/cotizaciones/{id}/factura (token de integracion)
+        MW->>MW: ExigirAlcance(facturacion:write) -> no presente en el token
+        MW-->>MOT: 403 Forbidden
+        MW->>OBX: EscribirEnTransaccionAsync(auditoria del intento bloqueado, tx)
+        note over MW,OBX: El intento se audita aunque no se ejecute (RF-05)
+    else C. Preventa ya convertida
+        VEN->>CC: POST /api/v1/preventas/{id}/cotizacion
+        CC->>CS: ConvertirPreventaAsync(preventaId, request)
+        CS->>PREP: ObtenerAsync(preventaId, tenantId)
+        PREP-->>CS: Preventa[Convertida]
+        CS-->>CC: PreventaYaConvertidaException(cotizacion_id existente)
+        CC-->>VEN: 409 Conflict (se devuelve la cotizacion existente)
+    else D. Cotizacion vencida o ya facturada
+        VEN->>CC: POST /api/v1/cotizaciones/{id}/factura
+        CC->>EO: EmitirDesdeCotizacionAsync(cotizacionId)
+        EO->>POL: EsFacturable(cotizacion, ahora)
+        POL-->>EO: false (VigenteHasta expirado / estado Facturada)
+        EO-->>CC: CotizacionNoFacturableException(motivo)
+        CC-->>VEN: 422 Unprocessable Entity (sin escribir en el outbox)
+    else E. Acceso a un recurso de otro tenant (QS-01)
+        VEN->>MW: GET /api/v1/cotizaciones/{id de otro tenant}
+        MW->>MW: tenant_id del token distinto del tenant del recurso
+        MW-->>VEN: 403 Forbidden
+        MW->>OBX: EscribirEnTransaccionAsync(auditoria del intento, tx)
+        note over MW: Ninguna consulta llega al repositorio sin tenant_id valido<br/>(invariante 7 de la seccion 1.6)
+    end
+
+    opt F. Falla el commit de la transaccion
+        PS->>OBX: EscribirEnTransaccionAsync(evento, tx)
+        OBX--xPS: error de base de datos - rollback
+        PS-->>PC: 500 Internal Server Error
+        note over PS,OBX: Ni la preventa ni su evento existen: nunca hay dato de negocio<br/>sin evento de auditoria asociado (ADR-002)
+    end
