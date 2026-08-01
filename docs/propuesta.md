@@ -13,7 +13,7 @@
 | **Docente** | Juan Mauricio Leandro Jiménez |
 | **Cuatrimestre** | 2026 — 02 |
 | **Versión del documento** | 1.0 — Entrega final |
-| **Fecha de última actualización** | 2026-08-11 |
+| **Fecha de última actualización** | 2026-08-01 |
 
 ---
 
@@ -24,7 +24,7 @@
 | 0.1 | 2026-05-23 | Propuesta (S03) | Creación del documento inicial | Edgar Jacob, Brandon Garita, Alejandro Mora |
 | 0.2 | 2026-06-12 | Avance 1 (S07) | Descripción del sistema, alcance, stakeholders, drivers arquitectónicos, escenarios de calidad y Vista de Contexto C4 | Edgar Jacob, Brandon Garita, Alejandro Mora |
 | 0.3 | 2026-07-11 | Avance 2 (S11) | Vista de estructura interna C4 nivel 2 (contenedores) con justificación de notación, diagrama y tabla descriptiva, y definición del stack tecnológico (.NET 8 / ASP.NET Core, SQL Server, Keycloak, RabbitMQ, MinIO); vista de comportamiento con diagramas de secuencia de los flujos críticos; estilo(s) arquitectónico(s) adoptado(s) con alternativas y análisis de trade-offs; registro de decisiones (ADRs); y primer componente con diseño detallado. | Edgar Jacob, Brandon Garita, Alejandro Mora |
-| 1.0 | 2026-08-11 | Entrega final (S14) | Refinamiento de las vistas de contexto (7.1) y contenedores (7.2) para consolidar su consistencia mutua; **vista de componentes C4 nivel 3** de dos subsistemas —Servicio de Facturación Fiscal y Procesador Asíncrono— (7.2.4); **vista de comportamiento completa** con cinco flujos y sus caminos de error (7.3); **vista de despliegue** sobre VM cloud + Docker Compose con nodos, artefactos y conectividad (7.4); **vista de concurrencia** con modelo de outbox/competing consumers, idempotencia y concurrencia optimista (7.5); **documentación de la evolución del diseño** entre avances (7.6); y consolidación del diseño detallado de componentes, patrones, análisis de calidad, tendencias, glosario y referencias. | Edgar Jacob, Brandon Garita, Alejandro Mora |
+| 1.0 | 2026-08-11 | Entrega final (S14) | Refinamiento de las vistas de contexto (7.1) y contenedores (7.2) para consolidar su consistencia mutua; **vista de componentes C4 nivel 3** de dos subsistemas —Servicio de Facturación Fiscal y Procesador Asíncrono— (7.2.4); **vista de comportamiento completa** con cinco flujos y sus caminos de error (7.3); **vista de despliegue** sobre VM cloud + Docker Compose con nodos, artefactos y conectividad (7.4); **vista de concurrencia** con modelo de outbox/competing consumers, idempotencia y concurrencia optimista (7.5); **documentación de la evolución del diseño** entre avances (7.6); **diseño detallado de los tres componentes** con contratos, análisis de robustez y secuencias, más la matriz de trazabilidad caso de uso → componente (10); **cinco patrones de diseño** con sus alternativas rechazadas (11); evidencia de los siete principios comprometidos (12); **validación de los siete escenarios de calidad** —incluido el nuevo QS-07 de interoperabilidad—, trade-offs y métricas de cohesión/acoplamiento (13); secciones por tipo de sistema aplicables (14); tendencias, puntos de extensión y **registro de deuda de diseño con sus disparadores de revisión** (15); glosario y referencias (16-17). | Edgar Jacob, Brandon Garita, Alejandro Mora |
 
 ---
 
@@ -41,7 +41,7 @@
    - 7.2 [Vista de estructura interna](#72-vista-de-estructura-interna)
    - 7.3 [Vista de comportamiento](#73-vista-de-comportamiento)
    - 7.4 [Vista de despliegue](#74-vista-de-despliegue)
-   - 7.5 [Vista de concurrencia](#75-vista-de-concurrencia-opcional) *(si aplica)*
+   - 7.5 [Vista de concurrencia](#75-vista-de-concurrencia-sección-opcional) *(si aplica)*
    - 7.6 [Evolución del diseño entre avances](#76-evolución-del-diseño-entre-avances)
 8. [Estilo arquitectónico](#8-estilo-arquitectónico)
 9. [Registro de decisiones — ADRs](#9-registro-de-decisiones--adrs)
@@ -207,7 +207,7 @@ El ciclo de vida se formaliza así (la marca ⟦motor⟧ delimita el alcance del
 ```
 
 ![Ciclo de vida del comprobante](../diagramas/ciclo-vida-factura.png)
-*Figura 1 — Ciclo de vida: captación social (motor de automatización) y tramo interno/fiscal, con responsables de cada transición*
+*Figura 1 — Ciclo de vida: captación social (motor de automatización) y tramo interno/fiscal, con responsables de cada transición. Código fuente en `/diagramas/ciclo-vida-factura.mmd`.*
 
 Cada transición de este ciclo plantea preguntas arquitectónicas que el diseño debe responder en los hitos siguientes, pero que quedan formuladas desde ya: qué componente es responsable de cada transición, qué pasa si una transición falla o se ejecuta dos veces, y cuándo una transición es definitiva (irreversible). Estas preocupaciones se concretan en las fuentes de verdad e invariantes de la sección 1.6, en el escenario de idempotencia QS-06 (sección 4) y en la frontera del motor de automatización (REST-05 y sección 3.4).
 
@@ -244,7 +244,7 @@ Un stakeholder es cualquier persona, grupo u organización que tiene interés en
  
 ---
  
-## STK-01: Dueños de PYMES
+### STK-01: Dueños de PYMES
  
 **Rol:** Propietarios y tomadores de decisiones de pequeñas y medianas empresas que venden a través de redes sociales.
  
@@ -256,7 +256,7 @@ Un stakeholder es cualquier persona, grupo u organización que tiene interés en
 | Obtener visibilidad sobre el estado comercial del negocio. | Cumplimiento fiscal sin complejidad adicional. |
 ---
  
-## STK-02: Personal administrativo
+### STK-02: Personal administrativo
  
 **Rol:** Empleados que operan el sistema día a día: emiten facturas, gestionan clientes y procesan cotizaciones.
  
@@ -269,7 +269,7 @@ Un stakeholder es cualquier persona, grupo u organización que tiene interés en
  
 ---
  
-## STK-03: Clientes finales
+### STK-03: Clientes finales
  
 **Rol:** Personas o empresas que compran productos/servicios de las PYMES y reciben los comprobantes electrónicos.
  
@@ -281,7 +281,7 @@ Un stakeholder es cualquier persona, grupo u organización que tiene interés en
  
 ---
  
-## STK-04: Administradores del sistema
+### STK-04: Administradores del sistema
  
 **Rol:** Personal técnico o funcional responsable de configurar, monitorear y mantener la plataforma en operación.
  
@@ -294,7 +294,7 @@ Un stakeholder es cualquier persona, grupo u organización que tiene interés en
  
 ---
  
-## STK-05: Entidades tributarias (Ministerio de Hacienda)
+### STK-05: Entidades tributarias (Ministerio de Hacienda)
  
 **Rol:** Ente regulador que define los requisitos legales y técnicos para la facturación electrónica en Costa Rica.
  
@@ -307,7 +307,7 @@ Un stakeholder es cualquier persona, grupo u organización que tiene interés en
  
 ---
  
-## STK-06: Equipo de desarrollo
+### STK-06: Equipo de desarrollo
  
 **Rol:** Desarrolladores e ingenieros responsables de construir, evolucionar y mantener la plataforma.
  
@@ -320,7 +320,7 @@ Un stakeholder es cualquier persona, grupo u organización que tiene interés en
  
 ---
  
-## STK-07: Proveedores de APIs externas (Meta, TikTok)
+### STK-07: Proveedores de APIs externas (Meta, TikTok)
  
 **Rol:** Plataformas de redes sociales cuyos servicios se integran al sistema mediante APIs públicas.
  
@@ -332,7 +332,7 @@ Un stakeholder es cualquier persona, grupo u organización que tiene interés en
  
 ---
  
-## Tabla resumen
+### Tabla resumen
  
 | ID | Stakeholder | Tipo | Influencia | Drivers asociados |
 |---|---|---|---|---|
@@ -358,7 +358,7 @@ Se incluyen únicamente los requerimientos funcionales con impacto arquitectóni
 | **RF-01** | Emisión de comprobantes electrónicos (factura, nota de crédito, nota de débito) cumpliendo el esquema XML del Ministerio de Hacienda de Costa Rica. | Dueños de PYMES, Entidades tributarias | Define el subsistema central del dominio. Obliga a un motor de facturación con generación XML, firma digital, envío al API de Hacienda y manejo de estados (aceptado/rechazado). Impone estructura de colas y reintentos. |
 | **RF-02** | Integración con APIs de redes sociales (Meta Platforms, TikTok) para capturar mensajes y consultas que el motor de automatización atiende y deriva como preventas. | Dueños de PYMES, Clientes finales | Introduce un subsistema de integración social con sus propias fronteras, protocolos de autenticación OAuth y manejo de webhooks. Requiere un intermediario (el motor de automatización) que desacople la mensajería social del core de facturación, recibiendo el sistema solo el handoff de preventa. |
 | **RF-03** | Automatización de la atención en redes sociales mediante un motor de workflows: responder mensajes y preguntas de usuarios, guiarlos hacia la aplicación con intención de compra y generar una **preventa** que ingresa al sistema. | Dueños de PYMES, Personal administrativo | Obliga a incorporar el motor de automatización como componente externo acotado a la **capa de captación social**, con una frontera explícita frente al dominio fiscal (sección 3.4). Define el contrato de handoff (preventa → app) y el patrón de comunicación, sin que el motor participe en la emisión fiscal. |
-| **RF-04** | Gestión multiusuario con roles diferenciados (administrador, vendedor, auditor) y permisos granulares por operación. | Administradores del sistema, Personal administrativo | Obliga a un subsistema transversal de autenticación y autorización (Identity Provider). Afecta cada punto de entrada del sistema y requiere decisiones sobre protocolos (JWT, OAuth2) y almacenamiento de sesiones. |
+| **RF-04** | Gestión multiusuario con roles diferenciados (administrador, vendedor, asistente administrativo) y permisos granulares por operación. | Administradores del sistema, Personal administrativo | Obliga a un subsistema transversal de autenticación y autorización (Identity Provider). Afecta cada punto de entrada del sistema y requiere decisiones sobre protocolos (JWT, OAuth2) y almacenamiento de sesiones. |
 | **RF-05** | Registro de auditoría completo e inmutable de todas las transacciones fiscales y acciones de usuarios. | Entidades tributarias, Administradores del sistema | Impone un log de auditoría append-only separado del almacenamiento transaccional. Afecta la estrategia de persistencia y puede requerir un almacén de eventos o base de datos dedicada para trazabilidad fiscal. |
 | **RF-06** | Procesamiento idempotente de eventos externos (webhooks de redes sociales, respuestas de Hacienda, llamadas del motor de automatización, reintentos por timeout y acciones manuales), garantizando que un mismo evento no produzca efectos duplicados. | Dueños de PYMES, Entidades tributarias, Administradores | Es un driver porque el sistema es, por naturaleza, un receptor de eventos potencialmente duplicados. Obliga a un mecanismo transversal de claves de idempotencia / deduplicación por `event_id` y a definir qué operaciones son seguras de reintentar. Sin esto se producen efectos inaceptables: doble emisión de factura, doble notificación al cliente, doble registro de auditoría o doble cambio de estado. |
 
@@ -370,7 +370,7 @@ Se priorizan los cinco atributos de calidad más críticos para este sistema. La
 |---|---|---|---|---|
 | **QA-01** | Seguridad | **Alta** | Entidades tributarias, Administradores | El sistema maneja información fiscal legalmente vinculante y datos sensibles de clientes (NIF, direcciones, montos). Una brecha comprometería la validez legal de los comprobantes y expondría a sanciones. Requiere firma digital, cifrado en tránsito/reposo y control de acceso estricto. |
 | **QA-02** | Disponibilidad | **Alta** | Dueños de PYMES, Clientes finales | Las PYMES dependen del sistema para facturar en tiempo real. Una caída durante horas pico significa pérdida directa de ventas. La integración con redes sociales exige que el sistema esté disponible cuando llegan mensajes (24/7). Objetivo mínimo: 99.5% uptime mensual. |
-| **QA-03** | Interoperabilidad | **Alta** | Dueños de PYMES, Administradores | El sistema debe comunicarse con al menos tres ecosistemas externos: API de Hacienda (XML/SOAP), APIs de redes sociales (REST/webhooks) y motor de automatización. Si la interoperabilidad falla, el valor diferenciador de la plataforma desaparece. |
+| **QA-03** | Interoperabilidad | **Alta** | Dueños de PYMES, Administradores | El sistema debe comunicarse con al menos tres ecosistemas externos: API de Hacienda (XML/SOAP), APIs de redes sociales (REST/webhooks) y motor de automatización. Si la interoperabilidad falla, el valor diferenciador de la plataforma desaparece. Se mide en QS-07 (sustitución del motor sin tocar el sistema) y, para el ecosistema fiscal, en QS-05. |
 | **QA-04** | Rendimiento | **Media-Alta** | Personal administrativo, Clientes finales | Las respuestas automáticas a consultas en redes sociales deben procesarse en segundos para no perder oportunidades comerciales. La emisión de facturas debe completarse en menos de 5 segundos incluyendo la respuesta de Hacienda. Tiempos mayores degradan la experiencia y generan doble envío. |
 | **QA-05** | Modificabilidad | **Media** | Administradores, Dueños de PYMES | Las regulaciones fiscales cambian periódicamente (nuevos campos, versiones de XML, tarifas impositivas). Las APIs de redes sociales actualizan sus contratos con frecuencia. El sistema debe absorber estos cambios sin rediseño arquitectónico, lo que exige bajo acoplamiento entre subsistemas. |
 
@@ -393,7 +393,7 @@ Las siguientes restricciones no son negociables y condicionan directamente las d
 
 > **Nota sobre el motor de automatización:** *La selección de la herramienta sigue sujeta al análisis arquitectónico, por lo que REST-05 mantiene su intercambiabilidad (cualquier motor de workflows o desarrollo propio). Lo que sí está decidido es su **alcance**: el motor es la capa de captación social y no participa del dominio fiscal.*
 
-#### 3.4 Frontera del motor de automatización
+### 3.4 Frontera del motor de automatización
 
 El motor de automatización se limita a la **capa de captación en redes sociales**. Su responsabilidad termina cuando entrega una **preventa** a la aplicación; a partir de ahí, todo el dominio fiscal vive en **SmartBilling Connect**. Esta frontera impide que una herramienta externa concentre lógica de negocio fiscal crítica.
 
@@ -414,9 +414,9 @@ El motor de automatización se limita a la **capa de captación en redes sociale
  
 Definir atributos de calidad en abstracto no es suficiente para tomar decisiones arquitectónicas. Un enunciado como "el sistema debe ser seguro y rápido" no le dice nada al equipo de diseño: no indica cuándo ocurre el problema, qué parte del sistema lo enfrenta ni cómo se mide el éxito. Los escenarios de calidad resuelven eso: convierten cada atributo en una situación concreta, con un actor real, una condición medible y una respuesta esperada del sistema.
  
-Cada escenario en esta sección sigue la estructura de seis elementos definida en la norma ISO/IEEE: fuente del estímulo, estímulo, entorno de operación, artefacto afectado, respuesta esperada del sistema y medida de respuesta. Las medidas son siempre numéricas; expresiones como "rápido" o "disponible" no califican como criterios de aceptación en un diseño arquitectónico serio.
+Cada escenario en esta sección sigue la **estructura de seis elementos del escenario de atributo de calidad** de Bass, Clements y Kazman (*Software Architecture in Practice*): fuente del estímulo, estímulo, entorno de operación, artefacto afectado, respuesta esperada del sistema y medida de respuesta. Las medidas son siempre numéricas; expresiones como "rápido" o "disponible" no califican como criterios de aceptación en un diseño arquitectónico serio.
  
-Se documentan seis escenarios que cubren cinco preocupaciones de calidad distintas: seguridad, disponibilidad, rendimiento, modificabilidad e idempotencia/integridad transaccional. Estos atributos fueron priorizados en la sección 3.2 como los más críticos para el dominio de SmartBilling Connect. Las medidas se expresan como **criterios de aceptación verificables en pruebas controladas**, no como deseos absolutos: en ingeniería casi nunca se puede demostrar un "cero" en términos absolutos, por lo que se acota a lo que una suite de pruebas puede comprobar. Al cierre de la sección se analizan las tensiones entre escenarios que entran en conflicto, porque es precisamente en esos conflictos donde se toman las decisiones arquitectónicas más importantes.
+Se documentan **siete escenarios**. Seis de ellos operacionalizan los cinco atributos priorizados en la sección 3.2 —seguridad (QS-01, QS-04), disponibilidad (QS-02), rendimiento (QS-03), modificabilidad (QS-05) e interoperabilidad (QS-07)— y el séptimo, QS-06, cubre una preocupación transversal que no es un atributo de §3.2 sino la contrapartida obligatoria del driver RF-06: **idempotencia / integridad transaccional**. Se documenta como escenario propio porque, sin una medida verificable, "el sistema no duplica efectos" sería una afirmación no comprobable, y de él dependen las decisiones de ADR-002. Las medidas se expresan como **criterios de aceptación verificables en pruebas controladas**, no como deseos absolutos: en ingeniería casi nunca se puede demostrar un "cero" en términos absolutos, por lo que se acota a lo que una suite de pruebas puede comprobar. Al cierre de la sección se analizan las tensiones entre escenarios que entran en conflicto, porque es precisamente en esos conflictos donde se toman las decisiones arquitectónicas más importantes.
  
 ---
  
@@ -529,6 +529,24 @@ Por su naturaleza, el sistema recibe eventos que pueden llegar duplicados: webho
 ---
 
 
+### QS-07 — Interoperabilidad: sustitución del motor de automatización por otra herramienta
+
+QA-03 identificó la interoperabilidad como atributo de alta prioridad porque el sistema conversa con tres ecosistemas externos que no controla. De los tres, Hacienda ya está cubierto por QS-05 (cambio de esquema) y QS-02 (indisponibilidad), y los canales sociales nunca tocan el sistema directamente. El riesgo de interoperabilidad que queda sin medir es el que REST-05 dejó deliberadamente abierto: **la herramienta de automatización aún no está elegida y debe poder cambiarse**. Si esa sustitución obligara a tocar el sistema, la frontera de §3.4 sería una ilusión.
+
+| Elemento | Descripción |
+|---|---|
+| **Fuente** | Equipo de desarrollo / decisión de negocio: se reemplaza la herramienta que implementa el motor de automatización (o se conecta una segunda en paralelo para otro canal). |
+| **Estímulo** | Solicitud de sustituir el motor por una herramienta distinta —otro producto de workflows o un desarrollo propio— manteniendo intacta la capacidad de captación social. |
+| **Entorno** | Sistema en producción con tenants activos recibiendo preventas por el motor actual; la migración no puede detener la operación comercial. |
+| **Artefacto** | Contrato de handoff de preventa (`POST /api/v1/preventas`), credencial de integración OAuth2 y su alcance, y el endpoint de consulta de estados públicos. |
+| **Respuesta** | El motor nuevo se registra en Keycloak como cliente de integración con alcance `preventas:write`, se le entrega la especificación del contrato de handoff y comienza a entregar preventas. El sistema no distingue un motor de otro: valida credencial, alcance e `Idempotency-Key` igual que antes. Ningún componente interno se modifica ni se redespliega. |
+| **Medida de respuesta** | Número de contenedores del sistema que requieren modificación de código: **cero**. Número de contenedores que requieren redespliegue: **cero** (el alta del cliente de integración es configuración de Keycloak). Tiempo desde la decisión hasta el primer handoff válido del motor nuevo: ≤ 5 días hábiles. La suite de pruebas de contrato del endpoint de handoff pasa sin cambios contra el motor nuevo. |
+
+ > **Tensión con QS-01 — Interoperabilidad vs. Seguridad:** aceptar cualquier motor que hable el contrato amplía la superficie de confianza: un segundo cliente de integración es una credencial más que puede comprometerse. La decisión de diseño es que la intercambiabilidad se ejerza **solo a nivel de credencial y alcance**, nunca de permisos: cada motor recibe su propio `client_id` con alcance `preventas:write` y sin `facturacion:write`, de modo que comprometer cualquiera de ellos permite crear preventas basura pero jamás emitir un comprobante (§3.4, §14.5). El límite del punto de extensión está declarado en §15.2: el contrato admite **otro motor**, no otro **tipo de actor**.
+
+---
+
+
 ## 5. Restricciones
 
 Las restricciones que actúan como **drivers** ya se detallaron en la sección 3.3 (REST-01 a REST-06), porque condicionan directamente decisiones arquitectónicas. Esta sección consolida la **lista completa y autoritativa** de restricciones del proyecto e incorpora la columna **Origen** (quién impone cada restricción), que complementa el análisis de impacto de 3.3. Para evitar duplicación, el detalle de impacto en el diseño permanece en 3.3; aquí se resume y se añade el origen.
@@ -543,7 +561,7 @@ Las restricciones que actúan como **drivers** ya se detallaron en la sección 3
 | REST-06 | Recursos limitados de proyecto académico/startup. | Negocio | Equipo / contexto del curso | Favorece stack open-source y servicios con capa gratuita. |
 | REST-07 | Cumplimiento de la Ley 8968 de Protección de Datos Personales (Costa Rica) para datos de clientes finales. | Regulatoria | PRODHAB (regulador CR) | Consentimiento, minimización y derecho de acceso/eliminación sobre datos personales; refuerza cifrado y control de acceso (QA-01). |
 
-> **Nota:** REST-07 se incorpora en este avance porque el sistema procesa datos personales de clientes finales (contacto, identificación fiscal) provenientes de redes sociales, lo que activa la Ley 8968 además del régimen tributario.
+> **Nota:** REST-07 se incorporó en el Avance 2 (S11) porque el sistema procesa datos personales de clientes finales (contacto, identificación fiscal) provenientes de redes sociales, lo que activa la Ley 8968 además del régimen tributario.
 
 ---
 
@@ -578,8 +596,6 @@ El grupo se compromete a respetar los siguientes principios durante todo el dise
 > **Qué muestra:** El sistema como una caja negra en su entorno. Las personas y sistemas externos que interactúan con él. Las relaciones entre ellos. **No muestra** lo que hay dentro del sistema.
 >
 > **Notación:** C4 nivel 1 (Context Diagram). Aplica a todos los tipos de sistema — un sistema embebido, un pipeline de datos, un monolito y una plataforma SaaS todos tienen contexto externo.
->
-> **Instrucciones:** Incluí el diagrama (imagen exportada o código PlantUML/Mermaid en `/diagramas/c4-contexto.puml`). Debajo del diagrama, describí cada elemento: el sistema central, cada actor externo (persona o rol) y cada sistema externo, con una oración que explique la naturaleza de la relación.
 
 ![Vista de contexto](../diagramas/c4-contexto.png)
 *Figura 2 — Vista de contexto del sistema SmartBilling Connect*
@@ -600,7 +616,7 @@ El grupo se compromete a respetar los siguientes principios durante todo el dise
 #### 7.1.1 Fronteras de confianza
 
 ![Vista de Fronteras de Confianza](../diagramas/c4-contexto-confianza.png)
-*Figura 3 — Fronteras de confianza del sistema SmartBilling Connect*
+*Figura 3 — Fronteras de confianza del sistema SmartBilling Connect. Código fuente en `/diagramas/c4-contexto-confianza.mmd`.*
 
 No todos los actores y sistemas externos tienen el mismo nivel de confianza, y esa distinción —no solo el diagrama— guía decisiones de seguridad, validación e idempotencia. Se clasifican así:
 
@@ -627,8 +643,6 @@ No todos los actores y sistemas externos tienen el mismo nivel de confianza, y e
 > **Notación por defecto — C4 nivel 2 (Container Diagram):** Usá esta notación si tu sistema tiene unidades desplegables separadas — APIs, aplicaciones web, bases de datos, servicios de mensajería, apps móviles, procesos batch, etc. "Contenedor" en C4 no es Docker — es cualquier unidad de ejecución o almacenamiento con una frontera propia.
 >
 > **Alternativa justificada:** Si el sistema es un monolito, un firmware, un sistema embebido o un pipeline de datos sin unidades desplegables separadas, podés usar un **diagrama de componentes UML** o un **diagrama de módulos**. Justificá en la subsección 7.2.1 por qué C4 contenedores no es la representación más honesta para tu sistema.
->
-> **Instrucciones:** Para cada contenedor o componente principal, describí: su responsabilidad, la tecnología usada, las interfaces que expone y las dependencias que tiene. Las relaciones entre contenedores deben indicar el protocolo o mecanismo de comunicación (REST, gRPC, eventos, SQL, etc.).
 
 #### 7.2.1 Justificación de notación
 
@@ -653,12 +667,12 @@ Esta separación no es cosmética: responde directamente a los drivers. El **Ser
 |---|---|---|---|---|---|
 | **Aplicación Web (SPA)** | Contenedor (frontend) | Interfaz de back-office para usuarios internos: gestión de clientes, cotizaciones, preventas, emisión y monitoreo. No contiene lógica fiscal. | React + TypeScript | UI web sobre HTTPS | API de Aplicación (REST), Identity Provider (login OIDC) |
 | **API de Aplicación** | Contenedor (servicio) | Núcleo aplicativo (monolito modular): CRM/clientes, cotizaciones, preventas, productos y orquestación del flujo. Único punto de entrada del handoff de preventa. Escribe dominio + eventos en la tabla *outbox* en la misma transacción. | ASP.NET Core 8 (C#) | REST/JSON `/api/v1` sobre HTTPS (Bearer JWT); endpoint de handoff de preventa | BD Transaccional (SQL, ADO.NET/TLS), Servicio de Facturación Fiscal (REST interno), Identity Provider (validación JWT) |
-| **Servicio de Facturación Fiscal** | Contenedor (servicio) | Dominio fiscal aislado: genera el XML, aplica firma XADES-EPES, gestiona la máquina de estados del comprobante y toda la comunicación con Hacienda. Fuente del estado interno `pendiente_validacion_hacienda`. | ASP.NET Core 8 (C#) | REST/HTTPS interno (consumido por la API); consumidor/productor AMQP | BD Transaccional (SQL), Almacén de Documentos (S3), Broker (AMQP), API Hacienda (XML/HTTPS) |
-| **Procesador Asíncrono (Workers)** | Contenedor (servicio background) | Relay del *outbox* a eventos, reintentos con backoff/circuit breaker, envío de notificaciones y escritura del log de auditoría. Garantiza idempotencia por `event_id`. | .NET Worker Service (BackgroundService) | Consumidor AMQP; procesos programados | Broker (AMQP), BD Transaccional (lee outbox), Almacén de Auditoría (insert-only), Servicio de Correo (SMTP/API) |
+| **Servicio de Facturación Fiscal** | Contenedor (servicio) | Dominio fiscal aislado: genera el XML, aplica firma XADES-EPES, gestiona la máquina de estados del comprobante y toda la comunicación con Hacienda. Fuente del estado interno `pendiente_validacion_hacienda`. | ASP.NET Core 8 (C#) | REST/HTTPS interno (consumido por la API y por los Workers); consumidor/productor AMQP | BD Transaccional (SQL), Almacén de Documentos (S3), Broker (AMQP), API Hacienda (XML/HTTPS), Identity Provider (JWKS, para validar por su cuenta el JWT de las llamadas internas) |
+| **Procesador Asíncrono (Workers)** | Contenedor (servicio background) | Relay del *outbox* a eventos, reintentos con backoff/circuit breaker, envío de notificaciones y escritura del log de auditoría. Garantiza idempotencia por `event_id`. | .NET Worker Service (BackgroundService) | Consumidor AMQP; procesos programados | Broker (AMQP), BD Transaccional (lee outbox), Almacén de Auditoría (insert-only), Servicio de Correo (SMTP/API), Servicio de Facturación Fiscal (REST interno, reenvío puntual de un comprobante pendiente) |
 | **Identity Provider** | Contenedor (servicio) | Autenticación y autorización multi-tenant: OIDC/OAuth2, emisión y validación de JWT, RBAC por rol y resolución de `tenant_id`. | Keycloak | OIDC / OAuth2 / JWKS sobre HTTPS | BD propia de Keycloak (interna) |
 | **Broker de Mensajería** | Contenedor (infraestructura) | Transporte asíncrono de eventos de dominio; desacopla emisión fiscal, notificación y auditoría del hilo de request. Habilita reintentos y orden. | RabbitMQ | AMQP (colas/exchanges) | — |
 | **Base de Datos Transaccional** | Contenedor (almacenamiento) | Persistencia transaccional multi-tenant con aislamiento por `tenant_id`: tenants, clientes, cotizaciones, facturas y tabla *outbox*. | SQL Server | SQL (ADO.NET/TLS) | — |
-| **Almacén de Auditoría** | Contenedor (almacenamiento) | Log append-only e inmutable de acciones y transacciones fiscales; nadie lo modifica tras escribir (RF-05, invariante 6 de 1.6). | SQL Server (esquema append-only / insert-only) | SQL insert-only | — |
+| **Almacén de Auditoría** | Contenedor (almacenamiento) | Log append-only e inmutable de acciones y transacciones fiscales; nadie lo modifica tras escribir (RF-05 y fila "Registro de auditoría" de la tabla de fuentes de verdad de §1.6). | SQL Server (esquema append-only / insert-only) | SQL insert-only | — |
 | **Almacén de Documentos Fiscales** | Contenedor (almacenamiento) | Conservación de XML/PDF de comprobantes con integridad demostrable durante ≥5 años (REST-02). | MinIO (compatible S3) | API S3 sobre HTTPS | — |
 | **Motor de Automatización** *(externo)* | Sistema externo | Capa de captación social: responde/guía en redes y entrega preventas. No participa del dominio fiscal (REST-05). | Fuera del sistema | — | API de Aplicación (handoff REST) |
 | **API Ministerio de Hacienda CR** *(externo)* | Sistema externo | Autoridad fiscal: valida el comprobante y define su estado aceptado/rechazado. | Fuera del sistema | XML sobre HTTPS | — |
@@ -706,12 +720,12 @@ Este contenedor tiene dos rutas de trabajo: **relevar** el outbox hacia el broke
 | `OutboxRelay` | Control | *Poller* que lee el outbox no publicado (claim por lote con bloqueo de fila) y lo relaya al broker. |
 | `EventDispatcher` | Control | Enruta cada evento consumido a su handler (competing consumers). |
 | `IdempotencyGuard` | Control | Deduplica por `event_id`: exactamente un efecto de negocio por evento (QS-06). |
-| `RetryPolicy + CircuitBreaker` | Control | Backoff exponencial y reintento FIFO ante fallos aguas abajo (QS-02); re-encola `emitir_comprobante`. |
+| `RetryPolicy + CircuitBreaker` | Control | Backoff exponencial y reintento FIFO ante fallos aguas abajo (QS-02). La ruta de reintento por defecto **reencola `emitir_comprobante` en el broker**, desde donde lo consume `FiscalEventConsumer` (§7.2.4.1) — es la que traza la Figura 6 y el Flujo 3 de §7.3. Con el circuito hacia el Servicio Fiscal cerrado, `FiscalRetryEventHandler` puede además reenviar el comprobante pendiente por REST interno (`IFiscalServiceClient`, §10.2.2); ambas rutas convergen en el mismo orquestador fiscal y comparten la deduplicación por `event_id`. |
 | `NotificationDispatcher` | Control | Arma y envía el comprobante/notificación al cliente por el Servicio de Correo. |
 | `AuditWriter` | Entity | Escribe la entrada append-only e inmutable en el Almacén de Auditoría (RF-05, QS-04). |
 | `OutboxRepository` | Entity | Marca los eventos del outbox como publicados tras confirmarse la publicación. |
 
-**Consistencia con 7.2.** Las dependencias del diagrama —lee el outbox de la BD Transaccional, publica/consume en el Broker, escribe en el Almacén de Auditoría, envía por el Servicio de Correo y re-encola hacia el Servicio Fiscal— son exactamente las que la Figura 4 asigna al contenedor "Procesador Asíncrono", sin agregados ni omisiones. El modelo de concurrencia de estos componentes (claim de outbox, competing consumers, concurrencia optimista) se analiza en detalle en la sección 7.5.
+**Consistencia con 7.2.** Las dependencias del diagrama —lee el outbox de la BD Transaccional, publica/consume en el Broker, escribe en el Almacén de Auditoría, envía por el Servicio de Correo y alcanza al Servicio Fiscal para el reintento de emisión— son exactamente las cinco que la Figura 4 asigna al contenedor "Procesador Asíncrono" (§7.2.3), sin agregados ni omisiones. La quinta merece una precisión, porque el diseño la resuelve por **dos caminos deliberados**: el reintento normal viaja por el broker (arista punteada de la Figura 6) y el reenvío puntual de un comprobante concreto usa el cliente REST interno `IFiscalServiceClient` (§10.2.2, §10.2.3). No son redundantes: el primero preserva el orden FIFO del drenaje masivo tras una caída de Hacienda; el segundo atiende el reenvío individual de CU-ASI-03 sin esperar al ciclo de la cola. El modelo de concurrencia de estos componentes (claim de outbox, competing consumers, concurrencia optimista) se analiza en detalle en la sección 7.5.
 
 ---
 
@@ -721,8 +735,6 @@ Este contenedor tiene dos rutas de trabajo: **relevar** el outbox hacia el broke
 > **Qué muestra:** Cómo fluye la información y el control a través del sistema para los casos de uso más importantes. Complementa la vista estática de la sección 7.2.
 >
 > **Notación:** Diagramas de secuencia UML. **Esta sección es obligatoria para todos los tipos de sistema.**
->
-> **Instrucciones:** Incluí un diagrama de secuencia por cada flujo crítico. Para el Avance 2, incluí al menos los 2 flujos más importantes. Para la Entrega final, cubrí el camino feliz Y al menos un camino de error o excepción por flujo. Cada diagrama debe tener título, los participantes claramente identificados y las llamadas etiquetadas con el método o mensaje.
 
 Para la Entrega final se documentan **cinco flujos**, cada uno con su camino feliz y al menos un camino de error o excepción. Los dos primeros (introducidos en Avance 2) son los más importantes porque cubren el driver central del dominio (RF-01 — emisión fiscal) y el driver diferenciador del producto (RF-02/RF-06 — captación social con handoff idempotente). Los tres restantes, añadidos en la Entrega final, cierran el comportamiento extremo a extremo: la **recuperación** ante la caída de Hacienda (que en el Flujo 1 solo se dejaba encolada), la **conversión comercial** completa preventa → cotización → factura (que enlaza los Flujos 2 y 1) y la **corrección** de un comprobante rechazado junto con la invariante de inmutabilidad. En conjunto ejercitan todos los contenedores y fronteras de confianza de 7.1 y 7.2.
 
@@ -795,8 +807,6 @@ Para la Entrega final se documentan **cinco flujos**, cada uno con su camino fel
 > **Qué muestra:** Dónde y cómo se despliega el sistema físicamente — servidores, contenedores Docker, servicios cloud, dispositivos edge, bases de datos, balanceadores, etc.
 >
 > **Notación:** C4 Deployment Diagram o diagrama de despliegue UML. Obligatorio si el sistema tiene componentes distribuidos en múltiples nodos. Opcional pero recomendado para sistemas monolíticos desplegados en cloud.
->
-> **Instrucciones:** Mostrá los nodos de infraestructura, qué artefactos de software corren en cada nodo, y las conexiones de red entre ellos con el protocolo indicado. Si usás servicios cloud, nombralos específicamente (ej. AWS RDS, Google Cloud Run, Azure Service Bus).
 
 #### 7.4.1 Estrategia de despliegue y su justificación
 
@@ -830,8 +840,6 @@ La separación en **dos nodos** no es cosmética: aísla el plano de cómputo (s
 > **Cuándo incluirla:** Si tu sistema tiene múltiples procesos o hilos ejecutándose simultáneamente, maneja eventos asincrónicos, tiene condiciones de carrera posibles, o requiere sincronización entre componentes. Si el sistema es completamente secuencial y single-threaded, omití esta sección y justificá por qué no aplica.
 >
 > **Notación:** Diagrama de estado UML o diagrama de actividad UML con swimlanes.
->
-> **Instrucciones:** Describí el modelo de concurrencia del sistema: qué procesos o hilos existen, cómo se sincronizan, qué recursos comparten, y cómo se evitan condiciones de carrera o deadlocks. Referenciá los escenarios de calidad de la sección 4 que este modelo satisface.
 
 **¿Aplica esta sección? Sí.** SmartBilling Connect es un sistema concurrente por diseño: el Procesador Asíncrono corre como uno o más workers (`BackgroundService`) que compiten por procesar el outbox y los eventos del broker en paralelo con los hilos de request de la API; varios usuarios de un mismo tenant pueden operar simultáneamente sobre los mismos comprobantes; y el sistema recibe eventos externos potencialmente duplicados (RF-06). Existen, por tanto, recursos compartidos (tabla outbox, filas de `Comprobante`, colas del broker) y posibles condiciones de carrera. Omitir esta sección sería deshonesto; el modelo de concurrencia es precisamente lo que hace correctos a los patrones outbox e idempotencia.
 
@@ -937,6 +945,10 @@ Lo más importante de la evolución es lo que **no** cambió: los actores y sist
 | **Fecha** | 2026-07-04 |
 | **Autores** | Edgar Jacob, Brandon Garita, Alejandro Mora |
 | **Drivers / escenarios que responde** | REST-05, QA-01, RF-01, QS-05 |
+| **Decisión** | Extraer todo el dominio fiscal —construcción del XML, firma XADES-EPES, máquina de estados del comprobante y comunicación con Hacienda— a un contenedor desplegable propio, alcanzable únicamente desde dentro del sistema. |
+| **Alternativas rechazadas** | Lógica fiscal dentro del monolito de la API (la frontera de REST-05 quedaría como convención, no como barrera); el motor de automatización llamando directo al servicio fiscal (contradice REST-05 de frente); un microservicio por tipo de comprobante (desproporcionado frente a REST-06). |
+| **Consecuencia principal** | *Gana:* despliegue y endurecimiento independientes del módulo fiscal —lo que habilita la medida de QS-05— y superficie de ataque reducida. *Cuesta:* un salto de red más dentro del presupuesto de latencia, un servicio adicional que versionar y monitorear, y autenticación entre servicios internos. |
+| **Revisión requerida si** | El volumen obliga a escalar cada tipo de comprobante por separado, o Hacienda pasa a exigir validación síncrona en tiempo real (lo que eliminaría el estado `PendienteValidacionHacienda`). |
 
 ---
 
@@ -950,6 +962,10 @@ Lo más importante de la evolución es lo que **no** cambió: los actores y sist
 | **Fecha** | 2026-07-04 |
 | **Autores** | Edgar Jacob, Brandon Garita, Alejandro Mora |
 | **Drivers / escenarios que responde** | RF-05, RF-06, QS-01, QS-03, QS-04, QS-06 |
+| **Decisión** | Escribir cada evento de dominio en una tabla *outbox* dentro de la misma transacción que el cambio de estado, y relevarlo después a RabbitMQ desde el Procesador Asíncrono, con reintentos, orden y deduplicación por `event_id`. Lo único que espera el camino crítico es la escritura en el outbox. |
+| **Alternativas rechazadas** | Auditoría síncrona dentro del request (la latencia se dispara bajo la carga de QS-03); publicación directa al broker sin outbox (el evento se pierde si la publicación falla tras el commit, rompiendo RF-05); Change Data Capture (infraestructura y conocimiento que REST-06 no soporta, y acopla el contrato de eventos al esquema físico). |
+| **Consecuencia principal** | *Gana:* nunca existe un dato de negocio sin su evento durable, y la auditoría sale del camino crítico (≤ 80 ms). *Cuesta:* el log de auditoría final es eventualmente consistente, y hay tres piezas más que vigilar (outbox, broker, workers) más el costo de programar y probar la deduplicación. |
+| **Revisión requerida si** | Un regulador exige evidencia de auditoría en tiempo real dentro de la misma transacción, o el volumen de eventos supera lo que una tabla outbox relacional sostiene con buen rendimiento. |
 
 ---
 
@@ -963,6 +979,10 @@ Lo más importante de la evolución es lo que **no** cambió: los actores y sist
 | **Fecha** | 2026-07-04 |
 | **Autores** | Edgar Jacob, Brandon Garita, Alejandro Mora |
 | **Drivers / escenarios que responde** | REST-03, REST-06, QS-01, QA-01 |
+| **Decisión** | Una sola base de datos compartida con columna `tenant_id` en todas las tablas transaccionales y fiscales, y resolución **centralizada** de ese `tenant_id` en la capa de autorización (claim del JWT emitido por Keycloak, propagado como `ITenantContext`), en lugar de confiar en que cada repositorio lo filtre por su cuenta. |
+| **Alternativas rechazadas** | Base de datos por tenant (costo y trabajo operativo se multiplican con cada alta — REST-06); esquema por tenant (multiplica las migraciones; queda como camino para un tenant con requisitos especiales); filtrado manual del `tenant_id` consulta por consulta (basta olvidar un `WHERE` una vez para incumplir QS-01). |
+| **Consecuencia principal** | *Gana:* QS-01 se valida en un único punto, fácil de probar y auditar, y las migraciones siguen un solo camino. *Cuesta:* todo el aislamiento depende de ese mecanismo, aparece el riesgo de *noisy neighbor* entre tenants, y no se puede ofrecer aislamiento físico a un cliente que lo exija por contrato. |
+| **Revisión requerida si** | Un tenant exige aislamiento físico por contrato o regulación, o se repiten incidentes de *noisy neighbor* por encima de lo aceptable. |
 
 ---
 
@@ -971,8 +991,6 @@ Lo más importante de la evolución es lo que **no** cambió: los actores y sist
 
 # BLOQUE 5 — DISEÑO DETALLADO
 *Hito: Avance 2 (S11) — primer componente / Entrega final (S14) — componentes restantes*
-
-## 10. Diseño detallado de componentes
 
 ## 10. Diseño detallado de componentes
 
@@ -1430,11 +1448,11 @@ Los cinco patrones documentados en detalle son los que responden directamente a 
 | Principio | Evidencia concreta | Referencia |
 |---|---|---|
 | **Separación de responsabilidades** | El dominio fiscal está físicamente aislado del dominio comercial: el **Servicio de Facturación Fiscal** es un contenedor desplegable independiente de la **API de Aplicación** (§7.2.3). Esto no es una convención de carpetas sino una frontera de proceso y de red: la API de Aplicación llama al Servicio Fiscal por REST/HTTPS interno y nunca accede directamente a sus tablas. El **Procesador Asíncrono** (Workers) vive en un tercer proceso que se ocupa exclusivamente de relevar el outbox, reintentar envíos a Hacienda, escribir en el Almacén de Auditoría y despachar notificaciones. El **Identity Provider** (Keycloak) corre como cuarto contenedor con su propia base de datos. Cada unidad tiene un ciclo de cambio y un nivel de criticidad distinto: el Servicio Fiscal puede endurecerse o desplegarse sin tocar el CRM; los Workers pueden escalar sin afectar la API. | ADR-001 (Aislamiento del dominio fiscal), Diagrama C4 nivel 2 (§7.2.2, Figura 4), Tabla de contenedores (§7.2.3) |
-| **Diseño para el cambio (bajo acoplamiento)** | El Servicio de Facturación Fiscal encapsula el esquema XML de Hacienda detrás de la interfaz `IXmlComprobanteBuilder` (§10.1.2). Si Hacienda publica una versión 4.4, se implementa un `XmlComprobanteBuilderV44` sin modificar `FiscalInvoiceService` ni ningún otro contenedor — el formato XML es un detalle interno del servicio. La firma digital está detrás de `ISignatureProvider`; la comunicación con Hacienda, detrás de `IHaciendaClient` con su política de reintentos y circuit breaker. En la frontera externa, el motor de automatización (sistema externo) entrega preventas por un contrato de handoff REST con `Idempotency-Key`; si se cambia la herramienta de automatización, la API de Aplicación no cambia porque solo conoce el contrato del endpoint, no al motor. | QS-05 (≤ 10 días hábiles, cero subsistemas ajenos), Contratos de interfaz (§10.1.2), Diagrama de secuencia de emisión (Figura 5) |
-| **Defensa en profundidad** | La seguridad opera en 4 capas independientes, cada una en un contenedor o mecanismo distinto: (1) **Keycloak** (Identity Provider) autentica y emite JWT con `tenant_id` y roles — corre como contenedor propio, aislado; (2) **Middleware de autorización** en la API de Aplicación y en el Servicio Fiscal valida RBAC y verifica que el recurso pertenezca al tenant del token antes de cada operación; (3) **Cifrado** en tránsito (TLS entre contenedores, ADO.NET/TLS hacia SQL Server) y en reposo para datos sensibles (certificados de firma, datos personales — REST-07); (4) **Almacén de Auditoría** append-only e insert-only (contenedor separado, §7.2.3) donde ningún actor — ni administradores — puede modificar ni eliminar entradas una vez escritas (invariante 6 de §1.6). Un fallo en la capa (1) no expone datos porque la capa (2) sigue verificando el tenant en cada query; un fallo en (2) tiene como segunda barrera las políticas de RLS a nivel de SQL Server. | ADR-003 (Multi-tenancy centralizada), QS-01 (tres capas deben fallar simultáneamente), §7.1.1 (Fronteras de confianza) |
-| **Fuente de verdad única por entidad** | La tabla de fuentes de verdad de §1.6 se implementa de forma concreta: el estado fiscal del comprobante (`Aceptado`/`Rechazado`) lo determina exclusivamente **Hacienda** — el Servicio de Facturación Fiscal refleja y conserva ese estado pero nunca lo fija por su cuenta (`ComprobanteStateMachine` solo permite la transición `Enviado → Aceptado` o `Enviado → Rechazado` como resultado de una respuesta de Hacienda, no como acción interna). El estado `PendienteValidacionHacienda` es legítimo y auditable: marca la ventana entre el envío y la respuesta, con timestamps de encolado y confirmación (QS-02). La **preventa** la genera el motor de automatización y, una vez entregada por handoff, el motor no puede modificarla — solo el usuario interno la gestiona dentro de la API de Aplicación. El **registro de auditoría** es su propia fuente de verdad inmutable en un contenedor separado. | §1.6 (Tabla de fuentes de verdad e invariantes), §10.1.2 (`ComprobanteStateMachine.Transicionar`), QS-02, Flujo 1 de §7.3 (Figura 5) |
-| **Idempotencia por diseño** | Toda operación con efecto de negocio que recibe eventos potencialmente duplicados implementa deduplicación por clave: (1) El **handoff de preventa** del motor usa una `Idempotency-Key` en el header HTTP; la API de Aplicación verifica la clave contra un almacén antes de crear la preventa — si ya existe, retorna 200 con el resultado previo sin ejecutar efecto (Flujo 2, Figura 6). (2) El **Servicio de Facturación Fiscal** verifica `event_id` antes de procesar un evento `emitir_comprobante` relevado desde el outbox — un reintento del Procesador Asíncrono no genera una segunda factura (§10.1.2, contrato de `EmitirComprobanteAsync`). (3) Los **callbacks de Hacienda** se deduplicaan por ID de comprobante: una respuesta duplicada de aceptación no cambia el estado de un comprobante ya aceptado (transición inválida en `ComprobanteStateMachine`). | RF-06 (driver de idempotencia), QS-06 (100 % eventos duplicados producen exactamente un efecto), ADR-002 (outbox con deduplicación por `event_id`) |
-| **Principio de menor privilegio (PoLA)** | El motor de automatización se autentica con credencial de integración OAuth2 propia (no sesión de usuario humano) y recibe un token con alcance que **no incluye acceso al dominio fiscal** (§3.4, REST-05). Concretamente: puede hacer POST al endpoint de handoff de preventa y GET a estados públicos, pero no puede invocar ningún endpoint del Servicio de Facturación Fiscal ni escribir en la tabla de comprobantes. Esto se verifica en el flujo 2 (Figura 6). Dentro del sistema, los roles RBAC (administrador, vendedor, asistente) limitan las operaciones por usuario: un vendedor puede crear cotizaciones y convertirlas en facturas, pero no puede modificar parámetros fiscales ni acceder a la configuración de tenants — eso es exclusivo del administrador (RF-04, §1.4). El Procesador Asíncrono tiene permiso insert-only sobre el Almacén de Auditoría y nunca update ni delete. | §3.4 (Tabla: el motor SÍ/NO puede), Flujo 2 (§7.3, Figura 6), ADR-003 (resolución de `tenant_id` en autorización) |
+| **Diseño para el cambio (bajo acoplamiento)** | El Servicio de Facturación Fiscal encapsula el esquema XML de Hacienda detrás de la interfaz `IXmlComprobanteBuilder` (§10.1.2). Si Hacienda publica una versión 4.4, se implementa un `XmlComprobanteBuilderV44` sin modificar `FiscalInvoiceService` ni ningún otro contenedor — el formato XML es un detalle interno del servicio. La firma digital está detrás de `ISignatureProvider`; la comunicación con Hacienda, detrás de `IHaciendaClient` con su política de reintentos y circuit breaker. En la frontera externa, el motor de automatización (sistema externo) entrega preventas por un contrato de handoff REST con `Idempotency-Key`; si se cambia la herramienta de automatización, la API de Aplicación no cambia porque solo conoce el contrato del endpoint, no al motor. | QS-05 (≤ 10 días hábiles, cero subsistemas ajenos), Contratos de interfaz (§10.1.2), Diagrama de clases del Componente 1 (Figura 14) y aplicación del patrón Strategy (Figura 26) |
+| **Defensa en profundidad** | Contra el riesgo principal del sistema —la exposición cruzada de datos fiscales entre tenants (REST-03)— operan **cuatro capas independientes, y las cuatro deben fallar a la vez** para que un tenant vea datos de otro: **(1) Keycloak** autentica y emite el JWT con `tenant_id`, roles y alcances; un token ausente, expirado o con firma inválida se rechaza con `401` antes de tocar ningún servicio. **(2) `TenantAuthorizationMiddleware`** en la API de Aplicación y en el Servicio Fiscal evalúa RBAC y alcance y verifica que el recurso pertenezca al tenant del token, respondiendo `403` y auditando el intento. **(3) `ITenantContext` inyectado como dependencia obligatoria del constructor** de cada repositorio (§11 Patrón 5): no existe forma de construir una consulta sin `tenant_id` resuelto — es el compilador, no la revisión de código, quien lo impide. **(4) Row-Level Security de SQL Server** como red final, por debajo del repositorio. A esas cuatro se suman dos controles transversales que no son capas de aislamiento pero sí de contención del daño: **cifrado** en tránsito (TLS incluso interno) y en reposo (certificados de firma, datos personales — REST-07), y el **Almacén de Auditoría** append-only en contenedor separado, donde ningún actor —tampoco un administrador— puede modificar ni eliminar entradas (RF-05 y tabla de fuentes de verdad de §1.6), de modo que un acceso indebido queda registrado aunque se consume. | ADR-003 (multi-tenancy centralizada), QS-01 (cuatro capas deben fallar simultáneamente, §13.1), §11 Patrón 5, §14.5 (Information Disclosure), §7.1.1 (fronteras de confianza) |
+| **Fuente de verdad única por entidad** | La tabla de fuentes de verdad de §1.6 se implementa de forma concreta: el estado fiscal del comprobante (`Aceptado`/`Rechazado`) lo determina exclusivamente **Hacienda** — el Servicio de Facturación Fiscal refleja y conserva ese estado pero nunca lo fija por su cuenta (`ComprobanteStateMachine` solo permite la transición `Enviado → Aceptado` o `Enviado → Rechazado` como resultado de una respuesta de Hacienda, no como acción interna). El estado `PendienteValidacionHacienda` es legítimo y auditable: marca la ventana entre el envío y la respuesta, con timestamps de encolado y confirmación (QS-02). La **preventa** la genera el motor de automatización y, una vez entregada por handoff, el motor no puede modificarla — solo el usuario interno la gestiona dentro de la API de Aplicación. El **registro de auditoría** es su propia fuente de verdad inmutable en un contenedor separado. | §1.6 (Tabla de fuentes de verdad e invariantes), §10.1.2 (`ComprobanteStateMachine.Transicionar`), QS-02, Flujo 1 de §7.3 (Figura 7) |
+| **Idempotencia por diseño** | Toda operación con efecto de negocio que recibe eventos potencialmente duplicados implementa deduplicación por clave: (1) El **handoff de preventa** del motor usa una `Idempotency-Key` en el header HTTP; la API de Aplicación verifica la clave contra un almacén antes de crear la preventa — si ya existe, retorna 200 con el resultado previo sin ejecutar efecto (Flujo 2, Figura 8). (2) El **Servicio de Facturación Fiscal** verifica `event_id` antes de procesar un evento `emitir_comprobante` relevado desde el outbox — un reintento del Procesador Asíncrono no genera una segunda factura (§10.1.2, contrato de `EmitirComprobanteAsync`). (3) Los **callbacks de Hacienda** se deduplican por ID de comprobante: una respuesta duplicada de aceptación no cambia el estado de un comprobante ya aceptado (transición inválida en `ComprobanteStateMachine`). | RF-06 (driver de idempotencia), QS-06 (100 % eventos duplicados producen exactamente un efecto), ADR-002 (outbox con deduplicación por `event_id`) |
+| **Principio de menor privilegio (PoLA)** | El motor de automatización se autentica con credencial de integración OAuth2 propia (no sesión de usuario humano) y recibe un token con alcance que **no incluye acceso al dominio fiscal** (§3.4, REST-05). Concretamente: puede hacer POST al endpoint de handoff de preventa y GET a estados públicos, pero no puede invocar ningún endpoint del Servicio de Facturación Fiscal ni escribir en la tabla de comprobantes. Esto se verifica en el flujo 2 (Figura 8). Dentro del sistema, los roles RBAC (administrador, vendedor, asistente administrativo) limitan las operaciones por usuario: un vendedor puede crear cotizaciones y convertirlas en facturas, pero no puede modificar parámetros fiscales ni acceder a la configuración de tenants — eso es exclusivo del administrador (RF-04, §1.4). El Procesador Asíncrono tiene permiso insert-only sobre el Almacén de Auditoría y nunca update ni delete. | §3.4 (Tabla: el motor SÍ/NO puede), Flujo 2 (§7.3, Figura 8), ADR-003 (resolución de `tenant_id` en autorización) |
 | **KISS / YAGNI** | Se eligió una arquitectura service-based con 4 servicios de grano grueso en lugar de microservicios finos (§8.2): esto da la frontera física que el dominio fiscal necesita sin proliferar infraestructura distribuida. La base de datos transaccional es una única instancia de SQL Server compartida (con aislamiento lógico por `tenant_id`), no una BD por servicio. El Identity Provider es Keycloak (producto maduro, gratuito, no desarrollo propio). El broker es RabbitMQ (open-source, un solo contenedor, configuración estándar). No se adoptó event sourcing ni CQRS porque el volumen de eventos (cientos/día) no lo justifica (§15.1): la tabla de auditoría append-only cubre la trazabilidad fiscal sin la complejidad de reconstruir estado desde eventos. Cada decisión de complejidad fue evaluada contra REST-06 (equipo de 3 personas). | ADR-001 (justificación service-based vs. microservicios), §8.2 (alternativas rechazadas), §15.1 (postura frente a event sourcing) |
  
 ### 12.1 Tensiones entre principios y cómo se resolvieron
@@ -1462,12 +1480,13 @@ Los cinco patrones documentados en detalle son los que responden directamente a 
  
 | Escenario | Medida requerida (§4) | Cómo el diseño lo satisface | Decisiones que lo habilitan | Riesgo residual |
 |---|---|---|---|---|
-| **QS-01 — Seguridad: acceso no autorizado a datos de otro tenant** | 100 % de intentos bloqueados con HTTP 403 en la suite de pruebas de autorización. Ninguna consulta sin `tenant_id` válido llega a repositorios fiscales. Evento de auditoría registrado en ≤ 500 ms. | Tres capas independientes deben fallar simultáneamente para que el acceso cruce tenants: (1) **Keycloak** valida el JWT y extrae `tenant_id` y roles; si el token es inválido o ausente, rechaza con 401 antes de tocar cualquier servicio. (2) **Middleware de autorización** en la API de Aplicación y el Servicio Fiscal verifica que el recurso solicitado pertenezca al `tenant_id` del token; si no coincide, rechaza con 403. (3) **SQL Server** aplica filtro obligatorio por `tenant_id` en cada query a través de un contexto de tenant inyectado por middleware — ninguna consulta puede omitir ese filtro porque el repositorio (`ComprobanteSqlRepository`) lo recibe como dependencia obligatoria, no como parámetro opcional. El intento fallido se persiste en el outbox dentro de la misma transacción y el Procesador Asíncrono lo escribe en el Almacén de Auditoría append-only. | ADR-003 (tenant_id centralizado), ADR-001 (frontera física del Servicio Fiscal), §7.1.1 (fronteras de confianza), §1.6 (invariante 7: ninguna consulta sin tenant_id válido) | Si un desarrollador bypassea el middleware y construye una query SQL manual sin filtro de tenant, la capa (3) debería atrapar el caso, pero depende de la disciplina en el uso del repositorio. Se mitiga con revisión de código y tests de integración que verifican que toda ruta de acceso pasa por el contexto de tenant. |
-| **QS-02 — Disponibilidad: fallo del servicio de Hacienda** | Degradación perceptible ≤ 2 s. Documentos encolados procesados en ≤ 10 min tras restauración. Disponibilidad del flujo local ≥ 99.5 % mensual. Ningún documento encolado se pierde ante reinicios. | Cuando Hacienda retorna timeout o 5xx, el Servicio de Facturación Fiscal transiciona el comprobante a `PendienteValidacionHacienda` (estado fiscal legítimo y auditable, §1.6) y publica el evento de reintento al broker. El **Procesador Asíncrono** reintenta con backoff exponencial y circuit breaker: si Hacienda sigue caído, el circuito se abre por 5 minutos y deja de intentar, evitando saturación. Al restaurarse, la cola FIFO se procesa en orden sin intervención manual. El usuario solo percibe el cambio de estado en la SPA (≤ 2 s de degradación visual). La durabilidad la garantiza **RabbitMQ** (cola durable con persistencia en disco): un reinicio del sistema no pierde mensajes encolados. El resto del sistema (CRM, preventas, cotizaciones) no se ve afectado porque la emisión fiscal es asíncrona (outbox → broker → Servicio Fiscal). | ADR-002 (outbox transaccional), ADR-001 (Servicio Fiscal aislado), Flujo 1 §7.3 (Figura 5, camino de degradación), §14.1 (reintentos y circuit breaker) | La ventana de inconsistencia temporal: durante la indisponibilidad, el comprobante existe internamente pero Hacienda no lo ha validado. Se mitiga con el estado `PendienteValidacionHacienda` que hace esa ventana visible y auditable, no silenciosa. |
-| **QS-03 — Rendimiento: 50 webhooks en 60 s durante campaña de ventas** | Respuesta extremo a extremo ≤ 4 s P95 (webhook → respuesta al cliente). Throughput ≥ 50 eventos/min. Tasa de no procesados < 1 %. | El procesamiento de webhooks ocurre **fuera del sistema**: el motor de automatización (externo) recibe los webhooks de Meta/TikTok, responde al cliente y guía hacia la app. SmartBilling Connect solo recibe el resultado como **handoff de preventa** — un POST REST con `Idempotency-Key`. Esto desacopla la latencia social de la operación interna: el P95 de 4 s se mide en la capa del motor, donde no hay transacción fiscal ni escritura de outbox en el camino crítico. Dentro del sistema, el handoff es una operación ligera (validar clave, crear preventa, escribir outbox, responder 201) que no compite con la emisión fiscal. La API de Aplicación no procesa webhooks de redes sociales directamente — esa es responsabilidad del motor, que escala de forma independiente. | REST-05 y §3.4 (frontera del motor), Flujo 2 §7.3 (Figura 6), §8.1 (el motor absorbe los picos de mensajería social) | Si el motor de automatización se satura, las respuestas a clientes se degradan fuera del control del sistema. Se mitiga documentando requisitos de capacidad del motor como parte del contrato operativo, pero el riesgo es inherente a una dependencia externa. |
+| **QS-01 — Seguridad: acceso no autorizado a datos de otro tenant** | 100 % de intentos bloqueados con HTTP 403 en la suite de pruebas de autorización. Ninguna consulta sin `tenant_id` válido llega a repositorios fiscales. Evento de auditoría registrado en ≤ 500 ms. | **Cuatro capas independientes deben fallar simultáneamente** para que el acceso cruce tenants: (1) **Keycloak** valida el JWT y extrae `tenant_id`, roles y alcances; si el token es inválido o ausente, rechaza con 401 antes de tocar cualquier servicio. (2) **`TenantAuthorizationMiddleware`** en la API de Aplicación y el Servicio Fiscal verifica que el recurso solicitado pertenezca al `tenant_id` del token; si no coincide, rechaza con 403. (3) **`ITenantContext` como dependencia obligatoria del constructor** de cada repositorio (`ComprobanteSqlRepository`, `PreventaSqlRepository`): ninguna consulta puede omitir el filtro por `tenant_id` porque no existe forma técnica de instanciar el repositorio sin el contexto resuelto — no es un parámetro opcional (§11 Patrón 5). (4) **Row-Level Security de SQL Server** como red final por debajo del repositorio, para la ruta que se saltara las tres anteriores. El intento fallido se persiste en el outbox dentro de la misma transacción y el Procesador Asíncrono lo escribe en el Almacén de Auditoría append-only. | ADR-003 (tenant_id centralizado), ADR-001 (frontera física del Servicio Fiscal), §11 Patrón 5 (`ITenantContext` por constructor), §7.1.1 (fronteras de confianza), §1.6 (invariante 7: ninguna consulta sin tenant_id válido) | Un desarrollador podría saltarse el repositorio y escribir una query ADO.NET manual sin filtro de tenant: en ese caso las capas (2) y (3) no intervienen y todo queda en manos de la capa (4), RLS. Se mitiga con revisión de código y tests de integración que verifican que toda ruta de acceso pasa por el contexto de tenant (§14.5, riesgos residuales). |
+| **QS-02 — Disponibilidad: fallo del servicio de Hacienda** | Degradación perceptible ≤ 2 s. Documentos encolados procesados en ≤ 10 min tras restauración. Disponibilidad del flujo local ≥ 99.5 % mensual. Ningún documento encolado se pierde ante reinicios. | Cuando Hacienda retorna timeout o 5xx, el Servicio de Facturación Fiscal transiciona el comprobante a `PendienteValidacionHacienda` (estado fiscal legítimo y auditable, §1.6) y publica el evento de reintento al broker. El **Procesador Asíncrono** reintenta con backoff exponencial y circuit breaker: si Hacienda sigue caído, el circuito se abre por 5 minutos y deja de intentar, evitando saturación. Al restaurarse, la cola FIFO se procesa en orden sin intervención manual. El usuario solo percibe el cambio de estado en la SPA (≤ 2 s de degradación visual). La durabilidad la garantiza **RabbitMQ** (cola durable con persistencia en disco): un reinicio del sistema no pierde mensajes encolados. El resto del sistema (CRM, preventas, cotizaciones) no se ve afectado porque la emisión fiscal es asíncrona (outbox → broker → Servicio Fiscal). | ADR-002 (outbox transaccional), ADR-001 (Servicio Fiscal aislado), Flujo 1 §7.3 (Figura 7, camino de degradación) y Flujo 3 (Figura 9, recuperación), §14.1 (reintentos y circuit breaker) | La ventana de inconsistencia temporal: durante la indisponibilidad, el comprobante existe internamente pero Hacienda no lo ha validado. Se mitiga con el estado `PendienteValidacionHacienda` que hace esa ventana visible y auditable, no silenciosa. |
+| **QS-03 — Rendimiento: 50 webhooks en 60 s durante campaña de ventas** | Respuesta extremo a extremo ≤ 4 s P95 (webhook → respuesta al cliente). Throughput ≥ 50 eventos/min. Tasa de no procesados < 1 %. | El procesamiento de webhooks ocurre **fuera del sistema**: el motor de automatización (externo) recibe los webhooks de Meta/TikTok, responde al cliente y guía hacia la app. SmartBilling Connect solo recibe el resultado como **handoff de preventa** — un POST REST con `Idempotency-Key`. Esto desacopla la latencia social de la operación interna: el P95 de 4 s se mide en la capa del motor, donde no hay transacción fiscal ni escritura de outbox en el camino crítico. Dentro del sistema, el handoff es una operación ligera (validar clave, crear preventa, escribir outbox, responder 201) que no compite con la emisión fiscal. La API de Aplicación no procesa webhooks de redes sociales directamente — esa es responsabilidad del motor, que escala de forma independiente. | REST-05 y §3.4 (frontera del motor), Flujo 2 §7.3 (Figura 8), §8.1 (el motor absorbe los picos de mensajería social) | Si el motor de automatización se satura, las respuestas a clientes se degradan fuera del control del sistema. Se mitiga documentando requisitos de capacidad del motor como parte del contrato operativo, pero el riesgo es inherente a una dependencia externa. |
 | **QS-04 — Trazabilidad: auditoría ante emisión masiva (200 facturas en lote)** | Evento de auditoría persistido en outbox durable antes de responder (misma transacción). Latencia adicional del outbox ≤ 80 ms por comprobante. 100 % de comprobantes con evento de auditoría en la suite de pruebas. Integridad del log verificable por hashes encadenados. Retención ≥ 5 años. | El patrón **Transactional Outbox** (ADR-002) es la pieza central: `FiscalInvoiceService.EmitirComprobanteAsync` escribe el comprobante (estado `Firmado`) y su evento de auditoría en la tabla outbox **dentro de la misma transacción de SQL Server** — si la transacción falla, ni el comprobante ni el evento existen; si confirma, ambos están durablemente persistidos. El `OutboxWriter` (§10.1.3) es el responsable de esa escritura transaccional. El Procesador Asíncrono releva el outbox al broker y desde ahí escribe en el **Almacén de Auditoría** (contenedor separado, insert-only, §7.2.3). El log final es eventualmente consistente, pero el evento durable ya existe en el outbox antes de que el sistema retorne respuesta. Los hashes encadenados en el Almacén de Auditoría hacen que alterar una entrada invalide todas las posteriores. El actor que originó cada comprobante (usuario humano o proceso interno de cierre de mes) queda registrado con su identidad, tenant y timestamp con precisión de milisegundo. | ADR-002 (outbox transaccional), §10.1.2 (contrato de `EmitirComprobanteAsync`), §10.1.3 (`OutboxWriter`), §7.2.3 (Almacén de Auditoría append-only) | Ventana de segundos entre el commit transaccional y la entrada visible en el Almacén de Auditoría final. Durante esa ventana, la evidencia existe en el outbox pero no es consultable desde la interfaz de auditoría. Se mitiga registrando timestamps de encolado y de confirmación para que la ventana quede trazada. |
 | **QS-05 — Modificabilidad: nuevo esquema XML de Hacienda** | Tiempo total publicación → despliegue validado ≤ 10 días hábiles. Subsistemas ajenos al módulo fiscal que requieren modificación: cero. Cobertura de pruebas ≥ 90 %. | El **Servicio de Facturación Fiscal** es un contenedor desplegable independiente (ADR-001): tiene su propio pipeline CI/CD, su propia imagen Docker y su propio ciclo de releases. El cambio de esquema XML se localiza exclusivamente en la implementación de `IXmlComprobanteBuilder` (§10.1.2): se crea `XmlComprobanteBuilderV44`, se actualizan las validaciones y se ajustan los tests unitarios del servicio. La interfaz `IXmlComprobanteBuilder` no cambia — `FiscalInvoiceService` la consume sin conocer la versión del esquema (inversión de dependencia). Ningún otro contenedor se modifica: la API de Aplicación llama al Servicio Fiscal por la misma interfaz REST, los Workers relevan los mismos eventos del outbox, Keycloak no participa del flujo XML. El despliegue del Servicio Fiscal se hace de forma independiente, en caliente, sin downtime para los demás contenedores. | ADR-001 (aislamiento físico del dominio fiscal), §10.1.2 (interfaz `IXmlComprobanteBuilder`), §8.1 (justificación de service-based) | Durante la ventana de despliegue en caliente, pueden coexistir dos versiones del Servicio Fiscal. Las entradas de auditoría incluyen la versión del esquema XML para mantener trazabilidad entre versiones. El riesgo es que Hacienda cambie el esquema de forma incompatible hacia atrás; se mitiga porque `IXmlComprobanteBuilder` permite mantener dos implementaciones activas simultáneamente con routing por versión. |
-| **QS-06 — Idempotencia: evento externo duplicado** | 100 % de eventos duplicados reconocidos producen exactamente un efecto de negocio. Ninguna operación fiscal marcada como idempotente genera segundo comprobante. Ventana de deduplicación ≥ periodo máximo de reintento por canal. | Tres puntos de entrada implementan deduplicación por clave: (1) **Handoff de preventa**: la API de Aplicación verifica la `Idempotency-Key` del header contra un índice único en SQL Server; si la clave existe, retorna 200 con el resultado previo sin crear segunda preventa (Flujo 2, Figura 6). (2) **Emisión fiscal**: el Servicio de Facturación Fiscal verifica `event_id` del evento AMQP antes de procesar `emitir_comprobante`; un reintento del Procesador Asíncrono no genera segunda factura (§10.1.2). (3) **Callbacks de Hacienda**: `ComprobanteStateMachine` rechaza transiciones inválidas — una respuesta duplicada de "Aceptado" sobre un comprobante ya aceptado no produce ningún efecto (transición `Aceptado → Aceptado` no existe en la tabla de transiciones). En los tres casos, la respuesta al duplicado es idéntica a la original: el sistema se comporta como si el evento hubiera llegado exactamente una vez. | ADR-002 (outbox con deduplicación), RF-06, §10.1.2 (`ComprobanteStateMachine.Transicionar` con `InvalidStateTransitionException`), Flujo 2 §7.3 | La ventana de deduplicación tiene un límite temporal: las claves de idempotencia se conservan por el periodo máximo de reintento configurado (ej. 72 h para webhooks, 7 días para preventas). Un duplicado que llegue después de ese periodo podría procesarse como nuevo. Se mitiga porque los reintentos de las fuentes externas (Meta, Hacienda, motor) tienen timeouts muy inferiores a esa ventana. |
+| **QS-06 — Idempotencia: evento externo duplicado** | 100 % de eventos duplicados reconocidos producen exactamente un efecto de negocio. Ninguna operación fiscal marcada como idempotente genera segundo comprobante. Ventana de deduplicación ≥ periodo máximo de reintento por canal. | Tres puntos de entrada implementan deduplicación por clave: (1) **Handoff de preventa**: la API de Aplicación verifica la `Idempotency-Key` del header contra un índice único en SQL Server; si la clave existe, retorna 200 con el resultado previo sin crear segunda preventa (Flujo 2, Figura 8). (2) **Emisión fiscal**: el Servicio de Facturación Fiscal verifica `event_id` del evento AMQP antes de procesar `emitir_comprobante`; un reintento del Procesador Asíncrono no genera segunda factura (§10.1.2). (3) **Callbacks de Hacienda**: `ComprobanteStateMachine` rechaza transiciones inválidas — una respuesta duplicada de "Aceptado" sobre un comprobante ya aceptado no produce ningún efecto (transición `Aceptado → Aceptado` no existe en la tabla de transiciones). En los tres casos, la respuesta al duplicado es idéntica a la original: el sistema se comporta como si el evento hubiera llegado exactamente una vez. | ADR-002 (outbox con deduplicación), RF-06, §10.1.2 (`ComprobanteStateMachine.Transicionar` con `InvalidStateTransitionException`), Flujo 2 §7.3 | La ventana de deduplicación tiene un límite temporal: las claves de idempotencia se conservan por el periodo máximo de reintento configurado (ej. 72 h para webhooks, 7 días para preventas). Un duplicado que llegue después de ese periodo podría procesarse como nuevo. Se mitiga porque los reintentos de las fuentes externas (Meta, Hacienda, motor) tienen timeouts muy inferiores a esa ventana. |
+| **QS-07 — Interoperabilidad: sustitución del motor de automatización** | Cero contenedores modificados y cero redespliegues. Primer handoff válido del motor nuevo en ≤ 5 días hábiles. La suite de pruebas de contrato del endpoint de handoff pasa sin cambios. | El motor nunca fue una dependencia de código del sistema, sino un **consumidor de un contrato**: `POST /api/v1/preventas` con credencial OAuth2 *client credentials* e `Idempotency-Key` (§10.3.2). La API de Aplicación no conoce la herramienta, solo valida token, alcance `preventas:write` y clave de idempotencia — el mismo camino para cualquier emisor. Dar de alta un motor distinto es crear un cliente en Keycloak y entregarle la especificación del endpoint: no hay código que tocar ni contenedor que redesplegar, porque la frontera de REST-05 se materializó como un único punto de entrada y no como una integración punto a punto. Los canales sociales tampoco cambian: nunca tocaron el sistema (§7.1.1). Los otros dos ecosistemas de QA-03 ya están aislados tras interfaz — Hacienda tras `IXmlComprobanteBuilder` / `IHaciendaClient` (QS-05) y el correo tras `INotificationSender`. | REST-05 y §3.4 (frontera y contrato de handoff), ADR-001 (el dominio fiscal nunca se expone al motor), §10.3.2 (contrato de `RecibirPreventaAsync`), §15.2 (punto de extensión "Contrato de handoff de preventa") | El contrato admite otro **motor**, no otro **tipo de actor**: si la herramienta nueva necesitara crear cotizaciones o comprobantes, no sería una sustitución sino una violación de §3.4, y exigiría rediseñar la frontera. Además, cada motor adicional es una credencial más que proteger (tensión declarada en QS-07). |
  
 ### 13.2 Trade-offs entre atributos de calidad
  
@@ -1475,7 +1494,7 @@ Los cinco patrones documentados en detalle son los que responden directamente a 
  
 | Atributo A | Atributo B | Tensión | Decisión tomada | Consecuencia aceptada |
 |---|---|---|---|---|
-| **Seguridad (QA-01)** | **Rendimiento (QA-04)** | Cada request pasa por 3 capas de validación (JWT en Keycloak, RBAC en middleware, filtro de tenant en SQL Server) antes de ejecutar la operación de negocio. Cada capa añade latencia. La tensión se intensifica en QS-03 (50 eventos/min) y QS-04 (200 facturas en lote). | Se priorizó seguridad. El overhead de validación se minimizó: JWT se verifica localmente contra la clave pública de Keycloak (sin llamada de red por request), los permisos RBAC se cachean en memoria por sesión, y el filtro de `tenant_id` se inyecta como condición WHERE en cada query (costo marginal en SQL Server con índice). | Se acepta un overhead de ~10-20 ms por request por las 3 capas. No afecta el objetivo de ≤ 4 s P95 en QS-03 (el handoff de preventa es una operación ligera) ni de ≤ 80 ms de outbox en QS-04 (el outbox es una escritura transaccional, no un request externo). |
+| **Seguridad (QA-01)** | **Rendimiento (QA-04)** | Cada request pasa por las 4 capas de validación de §13.1 (JWT en Keycloak, RBAC y tenant en middleware, filtro obligatorio del repositorio, RLS en SQL Server) antes de ejecutar la operación de negocio. Cada capa añade latencia. La tensión se intensifica en QS-03 (50 eventos/min) y QS-04 (200 facturas en lote). | Se priorizó seguridad. El overhead de validación se minimizó: JWT se verifica localmente contra la clave pública de Keycloak (sin llamada de red por request), los permisos RBAC se cachean en memoria por sesión, y tanto el filtro de `tenant_id` del repositorio como el predicado de RLS resuelven por índice (costo marginal, no *full scan*). | Se acepta un overhead de ~10-20 ms por request por las 4 capas. No afecta el objetivo de ≤ 4 s P95 en QS-03 (el handoff de preventa es una operación ligera) ni de ≤ 80 ms de outbox en QS-04 (el outbox es una escritura transaccional, no un request externo). |
 | **Disponibilidad (QA-02)** | **Consistencia / Integridad fiscal (QA-01)** | QS-02 requiere que el sistema siga facturando cuando Hacienda no responde. Pero QS-04 e invariante 5 de §1.6 exigen que toda factura tenga su entrada de auditoría y un estado fiscal válido. Durante la indisponibilidad, el estado real ante Hacienda es desconocido. | Se priorizó consistencia para transacciones fiscales mediante el patrón outbox: la factura y su evento de auditoría se confirman en la misma transacción de SQL Server (ADR-002). Si la BD falla, la factura no se emite. Para la ventana de indisponibilidad de Hacienda, se modeló `PendienteValidacionHacienda` como estado fiscal legítimo — no es consistencia eventual sino una representación fiel de la realidad: "enviado, esperando veredicto". | Si SQL Server tiene problemas de escritura, la factura no se emite hasta que se resuelvan — la disponibilidad del flujo de emisión depende de la BD. Se acepta una disponibilidad ligeramente menor a cambio de integridad fiscal absoluta. Para operaciones no fiscales (notificaciones, logs informativos), sí se usa consistencia eventual vía eventos. |
 | **Modificabilidad (QA-05)** | **Complejidad operativa (REST-06)** | QS-05 exige que el Servicio Fiscal se despliegue de forma independiente, lo que implica mantener un servicio separado con su propio pipeline, su propia imagen Docker y su propio monitoreo — más carga operativa que un módulo dentro de un monolito. | Se priorizó modificabilidad para el dominio fiscal porque REST-05 y QS-05 lo justifican: la frontera del dominio regulado no puede ser una convención de carpetas (§8.2, alternativa N-Tier rechazada). Se compensó la complejidad operativa con KISS en el resto: el dominio comercial (CRM, cotizaciones, preventas) permanece en un monolito modular (API de Aplicación) que no requiere despliegue independiente. El total es 4 servicios, no 10 microservicios. | Se acepta el costo operativo de 4 servicios + 1 broker + 1 Identity Provider. Es más que un monolito puro, pero significativamente menos que microservicios. RabbitMQ y Keycloak son productos maduros con configuración estándar; el equipo no los desarrolla, solo los opera. |
 | **Idempotencia (RF-06)** | **Rendimiento (QA-04)** | QS-06 exige verificar clave de idempotencia en cada operación con efecto de negocio. QS-03 exige procesar preventas con baja latencia (el handoff es parte de la cadena de 4 s P95). La verificación añade una consulta al almacén de claves en cada evento. | Se aplicó idempotencia selectivamente: solo a operaciones con efecto de negocio (handoff, emisión fiscal, callbacks de Hacienda), no a consultas de solo lectura. La verificación usa un índice único en SQL Server (lookup O(log n), no full scan). Para el handoff, la verificación y la creación ocurren en la misma transacción (un solo round-trip a BD). | El overhead por verificación de idempotencia es del orden de 1-5 ms (lookup por índice), despreciable frente a la latencia de red del handoff (~50 ms) o de Hacienda (~200-2000 ms). No se justifica sacrificar idempotencia por milisegundos. |
@@ -1486,7 +1505,7 @@ Los cinco patrones documentados en detalle son los que responden directamente a 
  
 | Contenedor | Cohesión | Justificación | Acoplamiento | Justificación |
 |---|---|---|---|---|
-| **Servicio de Facturación Fiscal** (§10.1) | **Alta** (funcional) | Todas las clases del servicio (`FiscalInvoiceService`, `IXmlComprobanteBuilder` / `XmlComprobanteBuilderV44`, `XadesEpesSignatureProvider`, `IHaciendaClient` / `HaciendaHttpClient`, `ComprobanteStateMachine`, `ComprobanteSqlRepository`, `OutboxWriter`) colaboran para cumplir una sola responsabilidad: el ciclo de vida del comprobante electrónico desde la generación XML hasta la confirmación de Hacienda. No hay clases que hagan cosas no relacionadas con el dominio fiscal. Cada clase interna tiene una sola razón para cambiar: `XmlComprobanteBuilderV44` cambia por esquema XML, `XadesEpesSignatureProvider` cambia por estándar de firma, `HaciendaHttpClient` cambia por protocolo de Hacienda. | **Bajo** | Dependencias eferentes mínimas: (1) SQL Server para persistencia de comprobantes y outbox (acceso por `ComprobanteSqlRepository` y `OutboxWriter`), (2) MinIO para archivado del XML/PDF, (3) API de Hacienda vía `IHaciendaClient`. No depende de la API de Aplicación, ni de los Workers, ni de Keycloak directamente — recibe requests REST autenticados cuyo JWT ya fue validado en la capa anterior. No conoce la existencia del CRM, las cotizaciones ni las preventas. Expone la interfaz REST interna que la API de Aplicación consume sin conocer su implementación. |
+| **Servicio de Facturación Fiscal** (§10.1) | **Alta** (funcional) | Todas las clases del servicio (`FiscalInvoiceService`, `IXmlComprobanteBuilder` / `XmlComprobanteBuilderV44`, `XadesEpesSignatureProvider`, `IHaciendaClient` / `HaciendaHttpClient`, `ComprobanteStateMachine`, `ComprobanteSqlRepository`, `OutboxWriter`) colaboran para cumplir una sola responsabilidad: el ciclo de vida del comprobante electrónico desde la generación XML hasta la confirmación de Hacienda. No hay clases que hagan cosas no relacionadas con el dominio fiscal. Cada clase interna tiene una sola razón para cambiar: `XmlComprobanteBuilderV44` cambia por esquema XML, `XadesEpesSignatureProvider` cambia por estándar de firma, `HaciendaHttpClient` cambia por protocolo de Hacienda. | **Bajo** | Cinco dependencias eferentes, las mismas que §7.2.3: (1) SQL Server para comprobantes y outbox (`ComprobanteSqlRepository`, `OutboxWriter`), (2) MinIO para el archivado del XML/PDF, (3) API de Hacienda vía `IHaciendaClient`, (4) el broker, como consumidor de `emitir_comprobante`, y (5) el JWKS de Keycloak para validar por su cuenta el token de las llamadas internas — no delega esa validación en quien lo llama, que es lo que hace de la capa (2) de §13.1 una barrera y no una cortesía. Se califica de **bajo** y no de alto porque cuatro de esas cinco son contratos de infraestructura estándar y de baja volatilidad (TDS, S3, AMQP, JWKS/OIDC): no son fuentes de cambio. La única realmente volátil es el esquema de Hacienda, y está encapsulada tras `IXmlComprobanteBuilder` (§11 Patrón 1). **No depende de la API de Aplicación ni de los Workers**: ambos lo invocan a él, nunca al revés. No conoce la existencia del CRM, las cotizaciones ni las preventas. |
 | **API de Aplicación** (§7.2.3) | **Media-Alta** (funcional con múltiples subdominios) | Concentra el dominio comercial completo: CRM/clientes, cotizaciones, preventas, productos y orquestación del flujo. Internamente es un monolito modular con módulos de fronteras lógicas. La cohesión no es máxima porque agrupa subdominios distintos (CRM vs. cotizaciones vs. preventas), pero todos comparten el mismo contexto comercial — no se mezcla lógica fiscal ni de identidad. | **Medio** | Tiene el acoplamiento más alto de los tres servicios: (1) llama al Servicio de Facturación Fiscal por REST interno cuando un usuario convierte una cotización en factura, (2) depende de Keycloak para validar JWT en cada request, (3) escribe en SQL Server (tabla transaccional + outbox), (4) es el punto de entrada del handoff de preventa del motor externo. Este acoplamiento es inherente a su rol de núcleo orquestador — se mitiga porque cada dependencia es contra un contrato (interfaz REST del Servicio Fiscal, protocolo OIDC de Keycloak, esquema de BD compartido), no contra una implementación interna. |
 | **Procesador Asíncrono (Workers)** (§7.2.3) | **Alta** (funcional) | Toda su lógica se centra en una sola responsabilidad: relevar eventos del outbox y procesarlos. Cada worker implementa una sola función: uno releva el outbox a RabbitMQ, otro procesa la escritura en el Almacén de Auditoría (insert-only), otro despacha notificaciones por correo, otro gestiona reintentos hacia Hacienda. Ningún worker contiene lógica de negocio fiscal ni comercial — son ejecutores de efectos secundarios. | **Medio** | Dependencias eferentes diversas pero controladas: (1) lee el outbox de SQL Server, (2) publica en RabbitMQ, (3) escribe en el Almacén de Auditoría (insert-only), (4) invoca el Servicio de Correo (SMTP/API), (5) puede reinvocar al Servicio Fiscal para reintentos de envío a Hacienda. Cada dependencia es contra un contrato estable (esquema de outbox, protocolo AMQP, esquema insert-only, API de correo). El acoplamiento eferente es moderado pero cada conexión es de baja volatilidad — estos contratos cambian con poca frecuencia. |
  
@@ -1496,8 +1515,10 @@ Los cinco patrones documentados en detalle son los que responden directamente a 
 |---|---|---|---|
 | Cohesión | Alta (funcional) | Media-Alta (funcional, múltiples subdominios comerciales) | Alta (funcional) |
 | Acoplamiento aferente (quién depende de mí) | Alto — la API de Aplicación y los Workers lo consumen | Alto — todos los usuarios y el motor externo entran por aquí | Bajo — nadie depende directamente de él; es consumidor, no proveedor |
-| Acoplamiento eferente (de quién dependo) | Bajo — SQL Server, MinIO, API Hacienda | Medio — Keycloak, Servicio Fiscal, SQL Server | Medio — SQL Server (outbox), RabbitMQ, Almacén de Auditoría, Servicio de Correo |
+| Acoplamiento eferente (de quién dependo) | Bajo — SQL Server, MinIO, RabbitMQ, JWKS de Keycloak y API Hacienda; solo esta última es un contrato volátil, y está encapsulada | Medio — Keycloak, Servicio Fiscal, SQL Server | Medio — SQL Server (outbox), RabbitMQ, Almacén de Auditoría, Servicio de Correo, Servicio Fiscal |
 | Inestabilidad (eferente / total) | Baja (0.25) — módulo estable | Media (0.5) — equilibrado | Alta (0.7) — módulo que absorbe cambios operativos |
+
+> **Cómo leer estos valores.** La inestabilidad de Martin, *I = Ce / (Ce + Ca)*, está definida sobre paquetes o clases. Aplicarla a tres contenedores contando cada almacén y cada protocolo como una dependencia distorsiona el indicador: el Servicio Fiscal saldría "inestable" solo por hablar con SQL Server, MinIO, RabbitMQ y Keycloak, que son precisamente las dependencias que **no** lo obligan a cambiar. Por eso los valores de la fila anterior son una **estimación cualitativa normalizada sobre las dependencias de contrato volátil** —aquellas cuyo cambio propaga trabajo hacia el contenedor— y no un conteo bruto de aristas de la Figura 4. Se presentan con un decimal por comodidad comparativa, no como una medición: lo que sostiene el argumento es el **orden relativo** entre los tres, no la cifra exacta.
  
 > **Interpretación:** El Servicio de Facturación Fiscal es el contenedor más estable del sistema (inestabilidad 0.25), lo cual es correcto porque contiene la lógica de dominio fiscal que no debe cambiar frecuentemente — solo cambia por actualizaciones regulatorias de Hacienda (QS-05), que están diseñadas para ser absorbidas internamente sin propagar cambios. El Procesador Asíncrono es el más inestable (0.7): como ejecutor de efectos secundarios, es el primero que se modifica cuando se agrega un nuevo canal de notificación, se cambia la política de reintentos o se ajusta el procesamiento del outbox. Esto es coherente con el Principio de Abstracciones Estables (SAP, Martin 2017): el módulo estable (Servicio Fiscal) expone interfaces abstractas (`IXmlComprobanteBuilder`, `ISignatureProvider`, `IHaciendaClient`), mientras que el módulo inestable (Workers) implementa flujos concretos de procesamiento que cambian con más frecuencia.
  
@@ -1505,6 +1526,8 @@ Los cinco patrones documentados en detalle son los que responden directamente a 
 
 # BLOQUE 7 — SECCIONES ESPECÍFICAS POR TIPO DE SISTEMA
 *Hito: Entrega final (S14) — incluir solo las que aplican al sistema*
+
+## 14. Secciones específicas por tipo de sistema
 
 **Secciones incluidas en este proyecto.** El bloque se completa solo con las subsecciones que corresponden a la naturaleza real de SmartBilling Connect. Incluir las restantes con contenido forzado sería describir un sistema que no existe.
 
@@ -1518,9 +1541,9 @@ Los cinco patrones documentados en detalle son los que responden directamente a 
 
 ---
 
-## 14.1 Sistemas distribuidos / cloud
+### 14.1 Sistemas distribuidos / cloud
 
-### Estrategia de consistencia
+#### Estrategia de consistencia
 
 SmartBilling Connect **no usa un único modelo de consistencia**, y esa es una decisión de diseño, no una omisión: aplica consistencia fuerte donde hay consecuencia legal y consistencia eventual donde el costo de la sincronía no se justifica. El criterio que separa una de otra es el de §1.6: *si el dato es fuente de verdad de una obligación fiscal, se escribe de forma fuertemente consistente; si es un efecto derivado, se propaga de forma eventual*.
 
@@ -1536,7 +1559,7 @@ SmartBilling Connect **no usa un único modelo de consistencia**, y esa es una d
 
 **Consecuencia aceptada:** el sistema es fuertemente consistente en su núcleo transaccional y eventualmente consistente en sus bordes. La ventana de inconsistencia observable es de segundos y siempre en la dirección segura: puede existir un comprobante cuyo correo aún no salió, pero **nunca** un correo de un comprobante que no existe.
 
-### Modelo CAP aplicado
+#### Modelo CAP aplicado
 
 Conviene empezar con una precisión, porque aplicar CAP mecánicamente a este sistema llevaría a conclusiones falsas: **el teorema CAP describe el comportamiento de datos replicados ante una partición de red**, y SmartBilling Connect no replica sus datos — hay una sola instancia de SQL Server (§7.4). Estrictamente, el trilema CAP no se activa dentro del plano de datos. Lo que sí existen son tres fronteras donde una partición produce una decisión real de diseño, y en cada una el sistema toma una postura distinta:
 
@@ -1550,7 +1573,7 @@ En términos de **PACELC** —que es el marco más honesto aquí porque también
 
 **Por qué esta combinación y no una uniforme:** un sistema enteramente CP dejaría de facturar cada vez que Hacienda tuviera una incidencia, lo que incumple frontalmente QS-02 y el negocio de la PYME. Un sistema enteramente AP permitiría emitir comprobantes sin evidencia durable cuando la base de datos fallara, lo que incumple RF-05 y expone a sanción. La frontera entre ambos regímenes coincide exactamente con la frontera entre lo que tiene consecuencia legal y lo que no.
 
-### Manejo de fallos y resiliencia
+#### Manejo de fallos y resiliencia
 
 Todo mecanismo listado está implementado en una clase concreta de la sección 10; no hay mecanismos "planeados".
 
@@ -1582,17 +1605,17 @@ Todo mecanismo listado está implementado en una clase concreta de la sección 1
 
 **Punto de fallo único reconocido.** La instancia de SQL Server no tiene réplica. Es una consecuencia consciente de REST-06 y queda registrada como deuda de diseño con su disparador de revisión en §15.3; la mitigación actual es respaldo periódico con verificación de restauración y el aislamiento del plano de datos descrito en §7.4.
 
-### Modelo de despliegue en nube
+#### Modelo de despliegue en nube
 
 El detalle completo está en §7.4 y no se repite. Lo relevante para esta subsección es que el sistema es **cloud-agnóstico por decisión**: se despliega como contenedores Docker sobre dos VMs Linux genéricas con Docker Compose, sin depender de ningún servicio gestionado propietario (no hay RDS, Service Bus, Cloud Run ni equivalentes). Los "servicios" son todos artefactos portables: `nginx`, ASP.NET Core 8, .NET Worker Service, Keycloak, RabbitMQ, SQL Server Express/Developer y MinIO. El motivo es doble: REST-06 (ningún costo recurrente de PaaS) y evitar un acoplamiento a proveedor que encarecería la migración futura. El costo aceptado es que el equipo asume tareas —respaldos, parches, monitoreo— que un servicio gestionado resolvería; a esta escala se consideró el intercambio correcto.
 
 ---
 
-## 14.2 Sistemas concurrentes / tiempo real
+### 14.2 Sistemas concurrentes / tiempo real
 
 **Precisión de alcance.** El sistema **es concurrente**, pero **no es de tiempo real**. En un sistema de tiempo real —duro o blando— el incumplimiento de un *deadline* invalida el resultado o degrada la función. Aquí no existe tal deadline: los objetivos de §4 son de latencia estadística (≤ 4 s P95 en QS-03, ≤ 80 ms de outbox en QS-04, ≤ 2 s de degradación perceptible en QS-02) y su incumplimiento ocasional degrada la experiencia, no la corrección. Un comprobante que se emite en 9 s en lugar de 5 s sigue siendo un comprobante válido. Por eso el diseño no usa planificación por prioridades, reserva de recursos ni análisis de planificabilidad, y sí usa colas, backpressure y control de concurrencia. Esta subsección documenta la dimensión concurrente; el modelo general está en §7.5 y aquí se detalla el análisis de recursos compartidos, condiciones de carrera y deadlocks que aquella no desarrolla.
 
-### Modelo de concurrencia
+#### Modelo de concurrencia
 
 El modelo es de **eventos asíncronos sobre un pool de hilos gestionado**, no de hilos manejados a mano. Ningún componente del sistema crea, sincroniza ni destruye hilos explícitamente: la concurrencia se expresa con `async`/`await` sobre el pool de .NET y se coordina con la base de datos y el broker, que son los verdaderos puntos de sincronización.
 
@@ -1606,7 +1629,7 @@ El modelo es de **eventos asíncronos sobre un pool de hilos gestionado**, no de
 
 **Consecuencia del diseño sin estado:** como ninguna unidad concurrente comparte memoria mutable con otra —la única excepción es el estado del circuit breaker, que es local al proceso—, **no existe en el sistema ningún `lock`, `Mutex`, `Semaphore` ni sección crítica en código de aplicación**. Toda la sincronización se delega a mecanismos transaccionales de SQL Server y a la semántica de entrega de RabbitMQ. Esta es la decisión que hace tratable la concurrencia para un equipo de tres personas (REST-06): los errores de concurrencia en memoria compartida son los más difíciles de reproducir y depurar, y el diseño simplemente los evita en lugar de administrarlos.
 
-### Recursos compartidos y sincronización
+#### Recursos compartidos y sincronización
 
 | Recurso compartido | Mecanismo de sincronización | Riesgo de condición de carrera | Mitigación y evidencia |
 |---|---|---|---|
@@ -1620,7 +1643,7 @@ El modelo es de **eventos asíncronos sobre un pool de hilos gestionado**, no de
 | **Certificados de firma y `HttpClient`** | `IHttpClientFactory` y acceso de solo lectura al certificado | **No:** ambos se usan sin mutación | Se evita el clásico agotamiento de sockets por instanciar `HttpClient` en cada llamada, y el certificado se resuelve por tenant sin estado compartido mutable |
 | **Pool de conexiones SQL** | Gestionado por ADO.NET | **Sí, indirecto:** agotamiento del pool bajo carga | Transacciones cortas (escribir dominio + outbox y commitear) y trabajo lento fuera de la transacción; timeout de comando de 15 s para no retener conexiones indefinidamente |
 
-### Prevención de deadlocks
+#### Prevención de deadlocks
 
 No hay deadlocks posibles en memoria porque no hay bloqueos en memoria. El riesgo remanente es el de **deadlock de base de datos**, y el diseño lo evita con tres reglas explícitas:
 
@@ -1630,17 +1653,17 @@ No hay deadlocks posibles en memoria porque no hay bloqueos en memoria. El riesg
 
 **Riesgo residual:** un *deadlock* de SQL Server sigue siendo posible bajo escalamiento de bloqueos con volúmenes muy superiores a los previstos. La mitigación es el reintento: la excepción de deadlock se clasifica como error transitorio y la política de resiliencia la reintenta con backoff, lo que a estas escalas resuelve el caso sin intervención.
 
-### Backpressure y control de carga
+#### Backpressure y control de carga
 
 El sistema absorbe picos por diseño, no por capacidad. La emisión fiscal está desacoplada del hilo de request (respuesta `202`), de modo que un pico de solicitudes se convierte en una cola más larga y no en timeouts al usuario. El `prefetch` acotado impide que un worker acepte más mensajes de los que puede procesar, y el tamaño de lote del relay limita cuánto trabajo se reclama por ciclo. El pico de mensajería social —el más volátil— ni siquiera llega al sistema: lo absorbe el Motor de Automatización y el handoff arriba ya filtrado como preventas (§8.3, QS-03).
 
 ---
 
-## 14.5 Sistemas con seguridad crítica
+### 14.5 Sistemas con seguridad crítica
 
 **Activos a proteger,** en orden de criticidad: (1) los comprobantes fiscales emitidos y su cadena de auditoría, cuya alteración tiene consecuencia legal; (2) los certificados de firma digital de cada tenant, cuya exposición permitiría emitir comprobantes en nombre de una empresa; (3) los datos personales de clientes finales, sujetos a la Ley 8968 y a la supervisión de la PRODHAB (REST-07); (4) los datos comerciales de cada tenant, cuya exposición cruzada es el principal riesgo arquitectónico identificado en REST-03.
 
-### Modelo de amenazas (STRIDE simplificado)
+#### Modelo de amenazas (STRIDE simplificado)
 
 | Amenaza | Componente en riesgo | Mitigación en el diseño |
 |---|---|---|
@@ -1653,7 +1676,7 @@ El sistema absorbe picos por diseño, no por capacidad. La emisión fiscal está
 
 **Frontera de confianza aplicada.** El análisis anterior es la contraparte operativa de la clasificación de §7.1.1: cada nivel de confianza determina cuánta validación recibe la entrada. Los canales sociales (confianza baja) ni siquiera tocan el sistema; el motor (semi-confiable) entra por un único endpoint autenticado, idempotente y sin alcance fiscal; los usuarios internos (confiables) operan autenticados pero con toda acción auditada; y Hacienda (autoridad) es la única fuente capaz de fijar el estado fiscal, aunque el sistema tolera su indisponibilidad y sus respuestas duplicadas.
 
-### Controles por capa
+#### Controles por capa
 
 | Capa | Controles | Componente / evidencia |
 |---|---|---|
@@ -1665,7 +1688,7 @@ El sistema absorbe picos por diseño, no por capacidad. La emisión fiscal está
 | **Auditoría y detección** | Log append-only con hashes encadenados; auditoría de intentos bloqueados; contadores de DLQ y estado de circuitos como señal operativa | §10.2 (`AuditSqlWriter`), CU-ADM-03, CU-ADM-04 |
 | **Operación** | Reinicio automático de contenedores; respaldos del plano de datos con verificación de restauración; secretos fuera del repositorio (variables de entorno / archivo de secretos de Compose) | §7.4 |
 
-### Riesgos residuales aceptados
+#### Riesgos residuales aceptados
 
 | Riesgo | Por qué se acepta | Mitigación parcial |
 |---|---|---|
@@ -1719,6 +1742,25 @@ Se listan solo puntos de extensión **reales**: cada uno corresponde a una inter
 | `IDocumentArchive` (§10.1) | Migrar a almacenamiento en frío o a otro proveedor S3 para la retención de ≥ 5 años (REST-02) | Interfaz sobre el almacén; el servicio solo conoce clave y URI | No cubre requisitos de **inmutabilidad certificada** (WORM) si la regulación llegara a exigirla |
 | **Identity Provider externalizado** (Keycloak) | Federar con el directorio corporativo de un cliente grande, o activar MFA, sin tocar el código del sistema | La autenticación se delegó a un producto y el sistema solo consume OIDC/JWKS (RF-04) | El modelo de roles sigue siendo el del sistema: un esquema de permisos por recurso individual exigiría rediseñar la autorización, no solo configurar el IdP |
 | **Réplicas del Procesador Asíncrono** (§7.5) | Escalar el procesamiento asíncrono horizontalmente | Lease con `READPAST` sobre el outbox y competing consumers: varias réplicas ya son seguras hoy | El estado del circuit breaker sigue siendo local por réplica (§14.2); coordinarlo requeriría un almacén compartido |
+
+---
+
+### 15.3 Deuda de diseño y disparadores de revisión
+
+Varias decisiones de este documento son **correctas para el contexto actual y equivocadas para otro**. Registrarlas como deuda —con el disparador concreto que obliga a reabrirlas y con la acción prevista— es lo que separa una simplificación consciente de un descuido. Ninguna de estas entradas es un defecto pendiente de corregir hoy: todas se aceptaron con su justificación en la sección correspondiente, y varias provienen directamente del campo "Revisión requerida si" de los ADR de §9.
+
+| # | Deuda de diseño | Por qué se aceptó hoy | Disparador que obliga a revisarla | Acción prevista al dispararse |
+|---|---|---|---|---|
+| **DD-01** | **SQL Server sin réplica: punto de fallo único** del sistema (§14.1). Si la instancia cae, la emisión se detiene por completo. | REST-06: una segunda instancia con alta disponibilidad duplica el costo de infraestructura y añade operación (failover, sincronización) que un equipo de 3 personas no sostiene. La disponibilidad objetivo de QA-02 (99.5 % mensual) admite la ventana de restauración desde respaldo. | Que el flujo de emisión incumpla el 99.5 % mensual dos meses consecutivos por indisponibilidad de la BD, o que un tenant contrate un SLA superior. | Pasar a *Always On* / réplica con failover automático, o migrar el plano de datos a una base gestionada. Mientras tanto: respaldo periódico **con verificación de restauración**, no solo con respaldo tomado. |
+| **DD-02** | **Servicio de Facturación Fiscal comparte la base de datos** con la API de Aplicación, lo que hace posible el outbox con transacción local (§8.1, ADR-002). | Es la decisión que evita sagas y 2PC (§11.1) y la que sostiene la medida de QS-04. Con dos servicios sobre una BD, la atomicidad es gratuita. | Que el Servicio Fiscal necesite su propia base —por volumen, por una exigencia de aislamiento regulatorio o por escalarlo aparte (§15.2)—. | **La atomicidad local del outbox se rompe** y reaparece el problema que ADR-002 evitó: habría que introducir una saga con compensaciones para la emisión, o duplicar el outbox por servicio. Es la revisión más cara de todas y por eso su disparador está explícito. |
+| **DD-03** | **Estado del circuit breaker local por réplica**, no compartido (§11 Patrón 4, §14.2). Con dos réplicas, cada una abre su circuito por separado. | Coordinarlo exige un almacén compartido —una dependencia más— cuyo costo no se paga a la escala actual (una a dos réplicas, cientos de facturas/día). | Que el número de réplicas del Procesador Asíncrono crezca por encima de tres, o que las sondas redundantes hacia un destino caído pasen a ser una carga medible sobre ese destino. | Mover el estado del circuito a un almacén compartido de baja latencia y hacerlo global por destino. |
+| **DD-04** | **Ventana de deduplicación finita**: las claves de idempotencia se conservan por el periodo máximo de reintento del canal (72 h webhooks, ≥ 7 días preventas), no indefinidamente (§13.1, QS-06). | Retener claves para siempre convierte la tabla de deduplicación en un crecimiento sin techo, y los timeouts reales de Meta, Hacienda y el motor son muy inferiores a esa ventana. | Que una fuente externa amplíe su política de reintento por encima de la ventana configurada, o que aparezca un duplicado real fuera de ventana en producción. | Ampliar la retención por canal y, si el volumen lo exige, particionar o archivar la tabla de claves en lugar de purgarla. |
+| **DD-05** | **Sin trazas distribuidas correlacionadas** extremo a extremo: hoy hay logs estructurados, contadores de DLQ y timestamps, pero no instrumentación OpenTelemetry (§15.1). | El sistema tiene cuatro servicios, no cuarenta; una incidencia se sigue hoy con el `event_id` y una consulta SQL. Instrumentar antes de operar sería optimizar a ciegas. | La puesta en producción con tenants reales. Es la **primera incorporación recomendada** tras el arranque, no una mejora opcional. | Instrumentar con OpenTelemetry usando el `event_id` ya existente como identificador de correlación, que atraviesa API → outbox → broker → workers → Servicio Fiscal sin cambios de contrato. |
+| **DD-06** | **Provisión, secretos y respaldos manuales**: el `docker-compose.yml` es la única descripción declarativa del despliegue (§15.1). | Con dos VMs y un entorno, el costo de Terraform/Ansible supera su beneficio, y REST-06 pesa. | Que aparezca un tercer entorno (por ejemplo, un *staging* permanente además de pruebas y producción) o que el alta de un entorno deje de ser reproducible por una sola persona. | Formalizar la provisión con Terraform o Ansible y mover los secretos a un gestor dedicado en lugar de archivos de Compose. |
+| **DD-07** | **Herramienta del motor de automatización sin elegir** (REST-05): el diseño define el contrato, no el producto. | Elegir la herramienta no es una decisión arquitectónica mientras la frontera esté cerrada; QS-07 mide precisamente que la sustitución no cueste nada. Fijarla antes de tiempo acoplaría el diseño a un producto. | La decisión de compra o construcción del motor, o la aparición de un requisito de captación que el contrato de handoff actual no exprese. | Registrar la elección como un ADR nuevo (ADR-004) y validar contra QS-07 que el alta no requirió modificar ningún contenedor. |
+| **DD-08** | **Seguridad operativa del motor fuera del control del equipo** (§14.5, riesgos residuales). | El daño está acotado por diseño: su credencial no alcanza el dominio fiscal, así que comprometerlo produce preventas basura, nunca un comprobante. | Un incidente de credencial comprometida, o que el motor pase a manejar datos personales sujetos a REST-07 más allá del contacto mínimo del handoff. | Rotación de credenciales, *rate limiting* específico por cliente de integración en `nginx` y revisión del alcance del dato que viaja en el handoff (minimización, Ley 8968). |
+
+**Cómo se leen estos disparadores.** Ninguno es una fecha: todos son condiciones observables. Eso es deliberado — una deuda con vencimiento de calendario se renegocia, una deuda con disparador medible se dispara sola. Tres de ellos (DD-01, DD-02, DD-04) están además registrados como riesgo residual aceptado en §14.5, y DD-02 corresponde al límite declarado del punto de extensión "Servicio de Facturación Fiscal como contenedor propio" en §15.2. Los campos "Revisión requerida si" de ADR-001, ADR-002 y ADR-003 alimentan respectivamente DD-02, DD-04/DD-01 y DD-01.
 
 ---
 
@@ -1818,7 +1860,7 @@ Donde la industria admite varios nombres para lo mismo, el equipo eligió uno y 
 | **OIDC / OAuth2** | Protocolos de autenticación y autorización delegada. Los usuarios entran por OIDC con sesión; el motor entra por *client credentials*, es decir, **sin sesión de usuario humano** (§10.3.2). |
 | **JWT / JWKS** | Token firmado que porta identidad, `tenant_id`, roles y alcances; y el conjunto de claves públicas con el que el sistema **verifica la firma localmente**, sin llamada de red por request (§13.2). |
 | **Alcance (*scope*)** | Permiso granular incluido en el token. `preventas:write` habilita el handoff; la ausencia de `facturacion:write` en el token del motor es lo que materializa técnicamente la frontera de REST-05. |
-| **RBAC** | Control de acceso basado en roles (administrador, vendedor, asistente, auditor), evaluado en cada request y no una sola vez por sesión (§14.5). |
+| **RBAC** | Control de acceso basado en roles (administrador, vendedor, asistente administrativo), evaluado en cada request y no una sola vez por sesión (§14.5). Las integraciones no usan roles sino **alcances** (*scopes*): el motor entra con `preventas:write` y sin `facturacion:write`. |
 | **RabbitMQ / AMQP** | Broker de mensajería y su protocolo. Transporta los eventos relevados del outbox hacia los handlers del Procesador Asíncrono. |
 | **Cola durable** | Cola cuyos mensajes se persisten en disco y sobreviven a un reinicio del broker. Es la condición sin la cual la medida "ningún documento encolado se pierde ante reinicios" de QS-02 no sería demostrable (§8.3). |
 | **`ack` / `nack` / `prefetch`** | Confirmación de procesamiento, rechazo (con o sin reencolado) y número máximo de mensajes que un consumidor acepta tener en vuelo. El diseño solo hace `ack` cuando el efecto —en particular la auditoría— quedó persistido (§10.2.4). |
@@ -1851,17 +1893,38 @@ Donde la industria admite varios nombres para lo mismo, el equipo eligió uno y 
 
 ## 17. Referencias
 
-- Bourque, P., & Fairley, R. E. (eds.). (2014). *Guide to the Software Engineering Body of Knowledge, Version 3.0 (SWEBOK v3.0)*. IEEE Computer Society.
-- Brown, S. (2014). *Software Architecture for Developers*. Leanpub.
+**Marco metodológico y diseño de software**
+
+- Bass, L., Clements, P., & Kazman, R. (2021). *Software Architecture in Practice* (4.ª ed.). Addison-Wesley. — Estructura de seis elementos del escenario de atributo de calidad y análisis de trade-offs (§4, §13).
+- Bourque, P., & Fairley, R. E. (eds.). (2014). *Guide to the Software Engineering Body of Knowledge, Version 3.0 (SWEBOK v3.0)*. IEEE Computer Society. — Clasificación de drivers arquitectónicos (§3).
+- Brown, S. (2014). *Software Architecture for Developers*. Leanpub. — Modelo C4 usado en §7.1, §7.2 y §7.2.4.
 - Budgen, D. (2003). *Software Design* (2.ª ed.). Addison-Wesley.
-- Gamma, E., Helm, R., Johnson, R., & Vlissides, J. (1995). *Design Patterns*. Addison-Wesley.
 - Gomaa, H. (2011). *Software Modeling and Design: UML, Use Cases, Patterns, and Software Architectures*. Cambridge University Press.
 - IEEE. (2009). *Std. 1016-2009, IEEE Standard for Information Technology—Systems Design—Software Design Descriptions*. IEEE Computer Society.
-- Martin, R. C. (2017). *Clean Architecture: A Craftsman's Guide to Software Structure and Design*. Prentice Hall.
 - Otero, C. (2012). *Software Engineering Design: Theory and Practice*. Auerbach Publications.
-- Rosenberg, D., & Stephens, M. (2007). *Use Case Driven Object Modeling with UML: Theory and Practice*. Apress.
+- Rosenberg, D., & Stephens, M. (2007). *Use Case Driven Object Modeling with UML: Theory and Practice*. Apress. — Análisis de robustez boundary/control/entity (§10.1.3, §10.2.3, §10.3.3).
+
+**Patrones, estilos y principios**
+
+- Evans, E. (2003). *Domain-Driven Design: Tackling Complexity in the Heart of Software*. Addison-Wesley. — Patrones tácticos y contexto acotado (§15.1).
+- Gamma, E., Helm, R., Johnson, R., & Vlissides, J. (1995). *Design Patterns: Elements of Reusable Object-Oriented Software*. Addison-Wesley. — Strategy, State, Adapter, Facade (§11).
+- Hohpe, G., & Woolf, B. (2003). *Enterprise Integration Patterns*. Addison-Wesley. — Competing consumers, dead letter channel, idempotent receiver (§7.5, §10.2, §14.1).
+- Martin, R. C. (2017). *Clean Architecture: A Craftsman's Guide to Software Structure and Design*. Prentice Hall. — Métricas de cohesión, acoplamiento e inestabilidad, y Principio de Abstracciones Estables (§13.3).
+- Nygard, M. T. (2018). *Release It! Design and Deploy Production-Ready Software* (2.ª ed.). Pragmatic Bookshelf. — Circuit breaker, timeouts y bulkheads (§11 Patrón 4, §14.1).
+- Richards, M., & Ford, N. (2020). *Fundamentals of Software Architecture*. O'Reilly. — Estilo *service-based* adoptado en §8.1.
+- Richardson, C. (2018). *Microservices Patterns*. Manning. — Transactional Outbox y sagas (§11 Patrón 3, §11.1, ADR-002).
+
+**Sistemas distribuidos y seguridad**
+
+- Abadi, D. (2012). Consistency tradeoffs in modern distributed database system design: CAP is only part of the story. *IEEE Computer*, 45(2), 37–42. — Marco PACELC aplicado en §14.1.
+- Gilbert, S., & Lynch, N. (2002). Brewer's conjecture and the feasibility of consistent, available, partition-tolerant web services. *ACM SIGACT News*, 33(2), 51–59. — Formalización del teorema CAP discutido en §14.1.
+- Shostack, A. (2014). *Threat Modeling: Designing for Security*. Wiley. — Taxonomía STRIDE aplicada en §14.5.
+
+**Normativa y fuentes del dominio**
+
 - Asamblea Legislativa de la República de Costa Rica. (2011). *Ley N.º 8968, Ley de Protección de la Persona frente al Tratamiento de sus Datos Personales*.
 - Ministerio de Hacienda de Costa Rica. (s. f.). *Comprobantes electrónicos: documentación técnica y esquemas XML*. Dirección General de Tributación.
+- ETSI. (2016). *EN 319 132-1: XAdES digital signatures — Building blocks and XAdES baseline signatures*. European Telecommunications Standards Institute. — Perfil de firma exigido por REST-01.
 
 ---
 
