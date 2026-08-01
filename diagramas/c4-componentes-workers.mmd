@@ -23,7 +23,7 @@ flowchart TB
 
     %% ===== Entrada / lectura =====
     DBTX -->|"SQL — lee outbox pendiente"| RELAY
-    RELAY -->|"AMQP — publica evento de dominio"| BROKER
+    RELAY -->|"AMQP — publica evento"| BROKER
     BROKER -->|"AMQP — consume notif./auditoría/estado"| DISP
 
     %% ===== Interior =====
@@ -39,6 +39,7 @@ flowchart TB
     NOTIF -->|"SMTP / API"| MAIL
     RETRY -.->|"re-encola 'emitir_comprobante' (reintento FIFO)"| BROKER
     BROKER -.->|"'emitir_comprobante'"| FISCAL
+    RETRY -->|"REST/HTTPS interno — reenvío puntual (CU-ASI-03)"| FISCAL
 
     %% ===== Estilos =====
     classDef control fill:#eef6ff,stroke:#1f6feb,color:#0b2a4a;

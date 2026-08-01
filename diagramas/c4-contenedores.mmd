@@ -45,6 +45,7 @@ flowchart TB
     SPA -->|"REST/JSON sobre HTTPS (Bearer JWT)"| API
     SPA -.->|"login OIDC / OAuth2 (HTTPS)"| IDP
     API -.->|"validación de token (JWKS / HTTPS)"| IDP
+    FISCAL -.->|"validación de token (JWKS / HTTPS)"| IDP
     API -->|"SQL — ADO.NET/TLS (dominio + outbox en misma tx)"| DBTX
     API -->|"REST/HTTPS interno"| FISCAL
 
@@ -53,6 +54,7 @@ flowchart TB
     FISCAL -->|"AMQP — consume 'emitir', publica 'estado fiscal'"| BROKER
     BROKER -->|"AMQP — consume notif./auditoría"| WORKER
     WORKER -->|"SQL insert-only"| DBAUD
+    WORKER -.->|"REST/HTTPS interno — reenvío puntual de comprobante pendiente"| FISCAL
     FISCAL -->|"SQL — estados de comprobante"| DBTX
     FISCAL -->|"API S3 / HTTPS"| DOCS
 
