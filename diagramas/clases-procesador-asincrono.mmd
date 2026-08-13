@@ -1,0 +1,163 @@
+%% Figura 18 - Diagrama de clases de diseno: Procesador Asincrono (Componente 2)
+classDiagram
+    direction TB
+
+    class OutboxRelayWorker {
+        <<boundary>>
+        -IOutboxRepository _outbox
+        -IMessagePublisher _publisher
+        -RelayOptions _opciones
+        +ExecuteAsync(CancellationToken ct) Task
+        +RelevarLoteAsync(int tamanoLote, CancellationToken ct) Task~int~
+    }
+
+    class EventConsumerWorker {
+        <<boundary>>
+        -EventDispatcher _dispatcher
+        +ConsumirAsync(IntegrationEvent evento, CancellationToken ct) Task
+        -Ack(IntegrationEvent evento) void
+        -Nack(IntegrationEvent evento, bool requeue) void
+    }
+
+    class EventDispatcher {
+        <<control>>
+        -IServiceProvider _handlers
+        -IdempotencyGuard _idempotencia
+        -IAsyncPolicy _resiliencia
+        +DespacharAsync(IntegrationEvent evento, CancellationToken ct) Task~DispatchResult~
+        -ResolverHandler(string tipoEvento) IEventHandler
+    }
+
+    class IdempotencyGuard {
+        <<control>>
+        -IProcessedEventStore _store
+        +TryBeginAsync(Guid eventId) Task~bool~
+        +CompletarAsync(Guid eventId, DispatchResult resultado) Task
+    }
+
+    class ResiliencePolicyFactory {
+        <<control>>
+        +CrearPolitica(string destino) IAsyncPolicy
+        +EstadoCircuito(string destino) CircuitState
+    }
+
+    class IEventHandler {
+        <<interface>>
+        +TipoEvento() string
+        +ManejarAsync(IntegrationEvent evento, CancellationToken ct) Task
+    }
+
+    class AuditEventHandler {
+        -IAuditWriter _auditoria
+        +TipoEvento() string
+        +ManejarAsync(IntegrationEvent evento, CancellationToken ct) Task
+    }
+    class NotificationEventHandler {
+        -INotificationSender _correo
+        +TipoEvento() string
+        +ManejarAsync(IntegrationEvent evento, CancellationToken ct) Task
+    }
+    class FiscalRetryEventHandler {
+        -IFiscalServiceClient _fiscal
+        -ResiliencePolicyFactory _politicas
+        +TipoEvento() string
+        +ManejarAsync(IntegrationEvent evento, CancellationToken ct) Task
+    }
+
+    class IMessagePublisher {
+        <<interface>>
+        +PublicarAsync(OutboxMessage mensaje, CancellationToken ct) Task~bool~
+    }
+    class RabbitMqPublisher {
+        -IModel _canal
+        +PublicarAsync(OutboxMessage mensaje, CancellationToken ct) Task~bool~
+    }
+
+    class INotificationSender {
+        <<interface>>
+        +EnviarAsync(NotificacionDto notificacion, CancellationToken ct) Task
+    }
+    class IFiscalServiceClient {
+        <<interface>>
+        +ReenviarComprobanteAsync(Guid comprobanteId, Guid eventId, CancellationToken ct) Task~ComprobanteStatusDto~
+    }
+
+    class IOutboxRepository {
+        <<interface>>
+        +ReclamarLoteAsync(int max, TimeSpan lease, CancellationToken ct) Task~OutboxBatch~
+        +MarcarPublicadoAsync(Guid outboxId) Task
+        +LiberarLeaseAsync(Guid outboxId) Task
+    }
+    class OutboxSqlRepository {
+        -SqlConnection _conexion
+        +ReclamarLoteAsync(int max, TimeSpan lease, CancellationToken ct) Task~OutboxBatch~
+        +MarcarPublicadoAsync(Guid outboxId) Task
+        +LiberarLeaseAsync(Guid outboxId) Task
+    }
+
+    class IAuditWriter {
+        <<interface>>
+        +EscribirAsync(AuditEntry entrada) Task
+    }
+    class AuditSqlWriter {
+        -SqlConnection _conexion
+        +EscribirAsync(AuditEntry entrada) Task
+        -CalcularHashEncadenado(AuditEntry entrada, string hashPrevio) string
+    }
+
+    class IProcessedEventStore {
+        <<interface>>
+        +RegistrarAsync(Guid eventId) Task~bool~
+        +ObtenerAsync(Guid eventId) Task~ProcessedEvent~
+    }
+
+    class OutboxMessage {
+        <<entity>>
+        +Guid Id
+        +Guid EventId
+        +Guid TenantId
+        +string TipoEvento
+        +string Payload
+        +DateTime CreadoEn
+        +DateTime PublicadoEn
+        +DateTime LeaseHasta
+        +int Intentos
+    }
+
+    class AuditEntry {
+        <<entity>>
+        +Guid Id
+        +Guid TenantId
+        +string Actor
+        +string Accion
+        +string HashPrevio
+        +string Hash
+        +DateTime OcurridoEn
+    }
+
+    class ProcessedEvent {
+        <<entity>>
+        +Guid EventId
+        +DateTime ProcesadoEn
+        +string ResultadoSerializado
+    }
+
+    OutboxRelayWorker ..> IOutboxRepository
+    OutboxRelayWorker ..> IMessagePublisher
+    EventConsumerWorker --> EventDispatcher
+    EventDispatcher --> IdempotencyGuard
+    EventDispatcher --> ResiliencePolicyFactory
+    EventDispatcher ..> IEventHandler
+    AuditEventHandler ..|> IEventHandler
+    NotificationEventHandler ..|> IEventHandler
+    FiscalRetryEventHandler ..|> IEventHandler
+    AuditEventHandler ..> IAuditWriter
+    NotificationEventHandler ..> INotificationSender
+    FiscalRetryEventHandler ..> IFiscalServiceClient
+    RabbitMqPublisher ..|> IMessagePublisher
+    OutboxSqlRepository ..|> IOutboxRepository
+    AuditSqlWriter ..|> IAuditWriter
+    IdempotencyGuard ..> IProcessedEventStore
+    IOutboxRepository ..> OutboxMessage
+    IAuditWriter ..> AuditEntry
+    IProcessedEventStore ..> ProcessedEvent

@@ -1,0 +1,65 @@
+---
+title: Vista de despliegue — SmartBilling Connect (VM cloud + Docker Compose)
+---
+flowchart TB
+    %% ===== Clientes =====
+    subgraph CLIENTS["Dispositivos de usuario"]
+        BROWSER["Navegador<br/><i>usuarios internos (PYME, Vendedor, Asistente)</i>"]
+    end
+
+    %% ===== Nodo 1: VM de Aplicación =====
+    subgraph VMAPP["🖥️ VM de Aplicación — Linux (2 vCPU / 4 GB) · Docker Engine"]
+        direction TB
+        NGINX["nginx<br/><i>contenedor — reverse proxy + TLS</i>"]
+        SPAC["SPA (build estático)<br/><i>artefacto React servido por nginx</i>"]
+        APIC["API de Aplicación<br/><i>contenedor — ASP.NET Core 8</i>"]
+        FISCALC["Servicio de Facturación Fiscal<br/><i>contenedor — ASP.NET Core 8</i>"]
+        WORKERC["Procesador Asíncrono<br/><i>contenedor — .NET Worker Service</i>"]
+        IDPC["Keycloak<br/><i>contenedor — Identity Provider</i>"]
+        RMQC["RabbitMQ<br/><i>contenedor — broker (volumen durable)</i>"]
+    end
+
+    %% ===== Nodo 2: VM de Datos =====
+    subgraph VMDATA["🖥️ VM de Datos — Linux (2 vCPU / 8 GB) · Docker Engine + volúmenes persistentes"]
+        direction TB
+        SQLC["SQL Server (Express/Developer)<br/><i>contenedor</i><br/>BD transaccional + esquema auditoría append-only + BD Keycloak"]
+        MINIOC["MinIO<br/><i>contenedor — almacén S3, retención ≥5 años (REST-02)</i>"]
+    end
+
+    %% ===== Sistemas externos =====
+    subgraph EXT["Sistemas externos"]
+        HAC["API Ministerio de Hacienda CR"]
+        MOTOR["Motor de Automatización<br/>(+ Meta / TikTok)"]
+        SMTP["Servicio de Correo (SMTP)"]
+    end
+
+    %% ===== Conexiones =====
+    BROWSER -->|"HTTPS / 443"| NGINX
+    MOTOR -->|"HTTPS / 443 — handoff preventa (REST, idempotente)"| NGINX
+    NGINX -->|"HTTP interno"| SPAC
+    NGINX -->|"HTTP interno / reverse proxy"| APIC
+    NGINX -->|"HTTPS — OIDC"| IDPC
+
+    APIC -->|"REST/HTTP interno"| FISCALC
+    APIC -->|"OIDC / JWKS (HTTPS)"| IDPC
+    APIC -->|"TDS / 1433 (TLS)"| SQLC
+    FISCALC -->|"AMQP / 5672"| RMQC
+    WORKERC -->|"AMQP / 5672"| RMQC
+    FISCALC -->|"TDS / 1433 (TLS)"| SQLC
+    WORKERC -->|"TDS / 1433 (TLS)"| SQLC
+    APIC -->|"TDS / 1433 (TLS)"| SQLC
+    IDPC -->|"TDS / 1433 (TLS)"| SQLC
+    FISCALC -->|"API S3 / 9000 (HTTPS)"| MINIOC
+
+    FISCALC -->|"XML firmado — HTTPS / 443"| HAC
+    WORKERC -->|"SMTP / 587 (TLS)"| SMTP
+
+    %% ===== Estilos =====
+    classDef node fill:#eef6ff,stroke:#1f6feb,color:#0b2a4a;
+    classDef store fill:#fff4e6,stroke:#cc7a00,color:#5a3600;
+    classDef ext fill:#e2e3e5,stroke:#6c757d,color:#212529;
+    classDef cli fill:#d1e7dd,stroke:#0f5132,color:#0f5132;
+    class NGINX,SPAC,APIC,FISCALC,WORKERC,IDPC,RMQC node;
+    class SQLC,MINIOC store;
+    class HAC,MOTOR,SMTP ext;
+    class BROWSER cli;

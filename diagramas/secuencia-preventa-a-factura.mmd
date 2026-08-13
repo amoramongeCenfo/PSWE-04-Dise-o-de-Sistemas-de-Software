@@ -1,0 +1,40 @@
+---
+title: Flujo 4 — Conversión de preventa a cotización y factura (camino feliz + errores de negocio)
+---
+sequenceDiagram
+    autonumber
+    actor VEND as Vendedor / Ejecutivo
+    participant SPA as Aplicación Web (SPA)
+    participant IDP as Identity Provider<br/>(Keycloak)
+    participant API as API de Aplicación<br/>(CRM / cotizaciones)
+    participant DBTX as BD Transaccional
+    participant FISCAL as Servicio de<br/>Facturación Fiscal
+    participant MAIL as Servicio de<br/>Correo
+
+    Note over VEND,API: Punto de partida: preventa creada por el handoff del Flujo 2<br/>(el dominio fiscal aún no ha avanzado)
+
+    VEND->>SPA: abre preventa recibida y la convierte en cotización
+    SPA->>API: POST /api/v1/cotizaciones (Bearer JWT)
+    API->>IDP: valida JWT — rol Vendedor + tenant_id
+    IDP-->>API: token válido (RBAC ok)
+
+    alt preventa nueva (no convertida)
+        API->>DBTX: crea cotización desde preventa<br/>+ marca preventa como convertida (misma tx)
+        DBTX-->>API: commit ok
+        API-->>SPA: 201 Created — cotización
+    else preventa ya convertida — error de negocio
+        API-->>SPA: 409 Conflict — "preventa ya tiene cotización"
+    end
+
+    SPA->>MAIL: (opcional) envía cotización al cliente para aprobación
+    VEND->>SPA: cliente aprueba → emitir factura desde cotización
+    SPA->>API: POST /api/v1/facturas {cotizacionId} (Bearer JWT)
+
+    alt cotización vigente y aprobada
+        API->>DBTX: TX única: crea factura (emitida_local)<br/>+ evento outbox "emitir_comprobante"
+        DBTX-->>API: commit ok
+        API-->>SPA: 202 Accepted — "en proceso"
+        Note over API,FISCAL: continúa en el Flujo 1 (emisión fiscal end-to-end):<br/>outbox → Broker → Servicio Fiscal → Hacienda
+    else cotización vencida o ya facturada — error de negocio
+        API-->>SPA: 422 Unprocessable — "cotización vencida / ya facturada"
+    end

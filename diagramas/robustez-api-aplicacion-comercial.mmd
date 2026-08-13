@@ -1,0 +1,53 @@
+%% Figura 23 - Analisis de robustez (BCE): API de Aplicacion - Nucleo Comercial (Componente 3)
+flowchart LR
+    ACT1(["Motor de Automatizacion<br/>(actor externo, solo handoff)"])
+    ACT2(["Vendedor / Asistente<br/>(actor humano via SPA)"])
+    ACT3(["Identity Provider (Keycloak)<br/>(actor sistema)"])
+    ACT4(["Servicio de Facturacion Fiscal<br/>(Componente 1)"])
+
+    B1["PreventaController<br/><i>boundary</i>"]
+    B2["CotizacionController<br/><i>boundary</i>"]
+    B3["TenantAuthorizationMiddleware<br/><i>boundary</i>"]
+    B4["FiscalHttpClient<br/><i>boundary</i>"]
+    B5["HandoffPreventaRequest / CotizacionDto<br/><i>boundary (DTO)</i>"]
+
+    C1(("PreventaService<br/><i>control</i>"))
+    C2(("CotizacionService<br/><i>control</i>"))
+    C3(("EmisionOrquestador<br/><i>control</i>"))
+    C4(("CotizacionPolicy<br/><i>control</i>"))
+
+    E1[("Preventa<br/><i>entity</i>")]
+    E2[("Cotizacion / Cliente<br/><i>entity</i>")]
+    E3[("IdempotencyKeySqlStore<br/><i>entity</i>")]
+    E4[("OutboxWriter<br/><i>entity</i>")]
+
+    ACT1 -- "POST /api/v1/preventas + Idempotency-Key" --> B3
+    ACT2 -- "convertir / aprobar / emitir" --> B3
+    B3 -- "valida JWT, tenant y alcance" --> ACT3
+    B3 --> B1
+    B3 --> B2
+    B1 --> B5
+    B2 --> B5
+    B1 --> C1
+    B2 --> C2
+    B2 --> C3
+    C1 --> E3
+    C1 --> E1
+    C1 --> E4
+    C2 --> E1
+    C2 --> E2
+    C2 --> C4
+    C3 --> C4
+    C3 --> E2
+    C3 --> E4
+    C3 --> B4
+    B4 -- "consulta de estado (nunca emite)" --> ACT4
+
+    classDef boundary fill:#e8f1fb,stroke:#2f6fb0,stroke-width:1px,color:#123
+    classDef control fill:#fff4e0,stroke:#c98200,stroke-width:1px,color:#123
+    classDef entity fill:#eef7ee,stroke:#3f8f4f,stroke-width:1px,color:#123
+    classDef actor fill:#f2f2f2,stroke:#666,stroke-width:1px,color:#123
+    class B1,B2,B3,B4,B5 boundary
+    class C1,C2,C3,C4 control
+    class E1,E2,E3,E4 entity
+    class ACT1,ACT2,ACT3,ACT4 actor

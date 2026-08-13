@@ -1,0 +1,52 @@
+---
+title: Vista de componentes (C4 nivel 3) — Procesador Asíncrono (Workers) — SmartBilling Connect
+---
+flowchart TB
+    %% ===== Contenedores vecinos (fuera del procesador) =====
+    DBTX[("Base de Datos Transaccional<br/><i>SQL Server</i><br/>tabla outbox")]
+    BROKER[["Broker de Mensajería<br/><i>RabbitMQ</i>"]]
+    DBAUD[("Almacén de Auditoría<br/><i>SQL Server append-only</i>")]
+    FISCAL["Servicio de Facturación Fiscal<br/>(contenedor vecino)"]
+    MAIL["Servicio de Correo Electrónico<br/>(sistema externo)"]
+
+    %% ===== Interior del contenedor Procesador Asíncrono =====
+    subgraph WORKER["Procesador Asíncrono (Workers) — .NET Worker Service (BackgroundService)"]
+        direction TB
+        RELAY["OutboxRelay<br/><i>control — poller</i><br/>lee outbox no publicado y lo relaya (claim por lote)"]
+        DISP["EventDispatcher<br/><i>control — competing consumers</i><br/>enruta eventos a su handler"]
+        IDEMP["IdempotencyGuard<br/><i>control</i><br/>dedup por event_id (QS-06)"]
+        RETRY["RetryPolicy + CircuitBreaker<br/><i>control</i><br/>backoff exponencial, FIFO (QS-02)"]
+        NOTIF["NotificationDispatcher<br/><i>control</i><br/>arma y envía comprobante/notificación"]
+        AUDIT["AuditWriter<br/><i>entity — insert-only</i><br/>entrada append-only (RF-05, QS-04)"]
+        OREPO["OutboxRepository<br/><i>entity</i><br/>marca eventos como publicados"]
+    end
+
+    %% ===== Entrada / lectura =====
+    DBTX -->|"SQL — lee outbox pendiente"| RELAY
+    RELAY -->|"AMQP — publica evento"| BROKER
+    BROKER -->|"AMQP — consume notif./auditoría/estado"| DISP
+
+    %% ===== Interior =====
+    DISP -->|verifica| IDEMP
+    DISP -->|aplica política| RETRY
+    DISP -->|notificación| NOTIF
+    DISP -->|auditoría| AUDIT
+    RELAY -->|marca publicado| OREPO
+
+    %% ===== Salida =====
+    OREPO -->|"SQL — update flag (misma conexión)"| DBTX
+    AUDIT -->|"SQL insert-only"| DBAUD
+    NOTIF -->|"SMTP / API"| MAIL
+    RETRY -.->|"re-encola 'emitir_comprobante' (reintento FIFO)"| BROKER
+    BROKER -.->|"'emitir_comprobante'"| FISCAL
+    RETRY -->|"REST/HTTPS interno — reenvío puntual (CU-ASI-03)"| FISCAL
+
+    %% ===== Estilos =====
+    classDef control fill:#eef6ff,stroke:#1f6feb,color:#0b2a4a;
+    classDef entity fill:#fff4e6,stroke:#cc7a00,color:#5a3600;
+    classDef ext fill:#e2e3e5,stroke:#6c757d,color:#212529;
+    classDef store fill:#fde8cd,stroke:#cc7a00,color:#5a3600;
+    class RELAY,DISP,IDEMP,RETRY,NOTIF control;
+    class AUDIT,OREPO entity;
+    class FISCAL,MAIL,BROKER ext;
+    class DBTX,DBAUD store;

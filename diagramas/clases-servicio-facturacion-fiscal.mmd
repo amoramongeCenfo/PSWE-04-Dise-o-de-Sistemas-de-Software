@@ -1,136 +1,168 @@
+%% Figura 14 - Diagrama de clases de diseno: Servicio de Facturacion Fiscal (Componente 1)
+%% SmartBilling Connect - PSWE-04 - Entrega final (S14)
 classDiagram
-    direction LR
+    direction TB
 
     class FiscalInvoiceController {
-        <<Boundary>>
+        <<boundary>>
         -IFiscalInvoiceService _service
-        +Task~IActionResult~ Post(ComprobanteRequest request) IActionResult
-        +Task~IActionResult~ GetEstado(Guid comprobanteId, Guid tenantId) IActionResult
+        -ITenantContext _tenant
+        +EmitirAsync(ComprobanteRequest request, CancellationToken ct) Task~IActionResult~
+        +ConsultarEstadoAsync(Guid comprobanteId) Task~IActionResult~
+    }
+
+    class FiscalEventConsumer {
+        <<boundary>>
+        -IFiscalInvoiceService _service
+        +ConsumirAsync(EmitirComprobanteEvent evento, CancellationToken ct) Task
+        -MapearARequest(EmitirComprobanteEvent evento) ComprobanteRequest
     }
 
     class IFiscalInvoiceService {
         <<interface>>
-        +Task~ComprobanteResult~ EmitirComprobanteAsync(ComprobanteRequest request, CancellationToken ct)
-        +Task~ComprobanteStatusDto~ ConsultarEstadoAsync(Guid comprobanteId, Guid tenantId)
+        +EmitirComprobanteAsync(ComprobanteRequest request, CancellationToken ct) Task~ComprobanteResult~
+        +ConsultarEstadoAsync(Guid comprobanteId, Guid tenantId) Task~ComprobanteStatusDto~
+        +RegistrarRespuestaHaciendaAsync(Guid comprobanteId, HaciendaResponse respuesta) Task
     }
 
     class FiscalInvoiceService {
-        <<Control>>
-        -IXmlComprobanteBuilder _xmlBuilder
-        -ISignatureProvider _signatureProvider
-        -IHaciendaClient _haciendaClient
-        -IComprobanteRepository _repository
-        -IOutboxWriter _outboxWriter
-        -ComprobanteStateMachine _stateMachine
-        +Task~ComprobanteResult~ EmitirComprobanteAsync(ComprobanteRequest request, CancellationToken ct) ComprobanteResult
-        +Task~ComprobanteStatusDto~ ConsultarEstadoAsync(Guid comprobanteId, Guid tenantId) ComprobanteStatusDto
-        -void ValidarRequest(ComprobanteRequest request) void
-        -Task~Comprobante~ PersistirYEncolarAsync(Comprobante comprobante, OutboxEvent evento) Comprobante
+        <<control>>
+        -IXmlComprobanteBuilderResolver _resolverBuilder
+        -ISignatureProvider _firmador
+        -IHaciendaClient _hacienda
+        -IComprobanteRepository _repo
+        -IOutboxWriter _outbox
+        -IDocumentArchive _archivo
+        -IdempotencyGuard _idempotencia
+        -ComprobanteStateMachine _maquinaEstados
+        +EmitirComprobanteAsync(ComprobanteRequest request, CancellationToken ct) Task~ComprobanteResult~
+        +ConsultarEstadoAsync(Guid comprobanteId, Guid tenantId) Task~ComprobanteStatusDto~
+        +RegistrarRespuestaHaciendaAsync(Guid comprobanteId, HaciendaResponse respuesta) Task
+        -ValidarRequest(ComprobanteRequest request) void
     }
 
     class ComprobanteStateMachine {
-        <<Control>>
-        +ComprobanteEstado Transicionar(ComprobanteEstado actual, ComprobanteEvento evento) ComprobanteEstado
-        -void ValidarTransicion(ComprobanteEstado actual, ComprobanteEvento evento) void
+        <<control>>
+        -Dictionary~TransicionKey, ComprobanteEstado~ _transiciones
+        +Transicionar(ComprobanteEstado actual, ComprobanteEvento evento) ComprobanteEstado
+        +EsTransicionValida(ComprobanteEstado actual, ComprobanteEvento evento) bool
+    }
+
+    class IdempotencyGuard {
+        <<control>>
+        -IProcessedEventStore _store
+        +TryBeginAsync(Guid eventId, Guid tenantId) Task~bool~
+        +ObtenerResultadoPrevioAsync(Guid eventId) Task~ComprobanteResult~
+    }
+
+    class IXmlComprobanteBuilderResolver {
+        <<interface>>
+        +Resolver(string versionEsquema) IXmlComprobanteBuilder
+    }
+    class XmlBuilderResolver {
+        -IEnumerable~IXmlComprobanteBuilder~ _builders
+        +Resolver(string versionEsquema) IXmlComprobanteBuilder
     }
 
     class IXmlComprobanteBuilder {
         <<interface>>
-        +string ConstruirXml(ComprobanteRequest request)
+        +Version() string
+        +ConstruirXml(ComprobanteRequest request) string
     }
-
+    class XmlComprobanteBuilderV43 {
+        +Version() string
+        +ConstruirXml(ComprobanteRequest request) string
+    }
     class XmlComprobanteBuilderV44 {
-        -void ValidarEsquema(XDocument documento) void
-        +string ConstruirXml(ComprobanteRequest request) string
+        +Version() string
+        +ConstruirXml(ComprobanteRequest request) string
     }
 
     class ISignatureProvider {
         <<interface>>
-        +byte[] Firmar(string xmlContent, X509Certificate2 certificado)
+        +Firmar(string xmlContent, X509Certificate2 certificado) XmlFirmado
     }
-
     class XadesEpesSignatureProvider {
-        +byte[] Firmar(string xmlContent, X509Certificate2 certificado) byte[]
-        -void ValidarCertificado(X509Certificate2 certificado) void
+        +Firmar(string xmlContent, X509Certificate2 certificado) XmlFirmado
     }
 
     class IHaciendaClient {
         <<interface>>
-        +Task~HaciendaResponse~ EnviarComprobanteAsync(byte[] xmlFirmado, CancellationToken ct)
-        +Task~HaciendaEstado~ ConsultarEstadoAsync(string claveNumerica)
+        +EnviarComprobanteAsync(XmlFirmado xmlFirmado, CancellationToken ct) Task~HaciendaResponse~
+        +ConsultarEstadoAsync(string claveNumerica, CancellationToken ct) Task~HaciendaResponse~
     }
-
     class HaciendaHttpClient {
-        -HttpClient _httpClient
-        -IAsyncPolicy _retryPolicy
-        +Task~HaciendaResponse~ EnviarComprobanteAsync(byte[] xmlFirmado, CancellationToken ct) HaciendaResponse
-        +Task~HaciendaEstado~ ConsultarEstadoAsync(string claveNumerica) HaciendaEstado
+        -HttpClient _http
+        -IAsyncPolicy _resiliencia
+        +EnviarComprobanteAsync(XmlFirmado xmlFirmado, CancellationToken ct) Task~HaciendaResponse~
+        +ConsultarEstadoAsync(string claveNumerica, CancellationToken ct) Task~HaciendaResponse~
     }
 
     class IComprobanteRepository {
         <<interface>>
-        +Task GuardarAsync(Comprobante comprobante, IDbTransaction tx)
-        +Task~Comprobante~ ObtenerPorIdAsync(Guid id, Guid tenantId)
+        +ObtenerAsync(Guid comprobanteId, Guid tenantId) Task~Comprobante~
+        +GuardarAsync(Comprobante comprobante, byte[] rowVersion) Task
     }
-
     class ComprobanteSqlRepository {
-        -DbContext _context
-        +Task GuardarAsync(Comprobante comprobante, IDbTransaction tx) Task
-        +Task~Comprobante~ ObtenerPorIdAsync(Guid id, Guid tenantId) Comprobante
+        -SqlConnection _conexion
+        -ITenantContext _tenant
+        +ObtenerAsync(Guid comprobanteId, Guid tenantId) Task~Comprobante~
+        +GuardarAsync(Comprobante comprobante, byte[] rowVersion) Task
     }
 
     class IOutboxWriter {
         <<interface>>
-        +Task EncolarEventoAsync(OutboxEvent evento, IDbTransaction tx)
+        +EscribirEnTransaccionAsync(OutboxMessage mensaje, IDbTransaction tx) Task
+    }
+    class OutboxWriter {
+        +EscribirEnTransaccionAsync(OutboxMessage mensaje, IDbTransaction tx) Task
     }
 
-    class OutboxWriter {
-        +Task EncolarEventoAsync(OutboxEvent evento, IDbTransaction tx) Task
+    class IDocumentArchive {
+        <<interface>>
+        +ArchivarAsync(string claveNumerica, XmlFirmado documento) Task~string~
     }
 
     class Comprobante {
-        <<Entity>>
+        <<entity>>
         +Guid Id
         +Guid TenantId
-        +TipoComprobante Tipo
-        +ComprobanteEstado Estado
         +string ClaveNumerica
-        +string XmlContent
-        +string HashIntegridad
+        +ComprobanteEstado Estado
+        +string HashXml
         +DateTime FechaEmision
-        +void MarcarComoFirmado(byte[] xmlFirmado) void
-        +void ActualizarEstado(ComprobanteEstado nuevoEstado) void
+        +byte[] RowVersion
+        +AplicarEstado(ComprobanteEstado nuevo) void
     }
 
-    class ComprobanteRequest {
-        <<Boundary DTO>>
-        +Guid TenantId
-        +Guid ClienteId
-        +TipoComprobante Tipo
-        +List~LineaDetalle~ Lineas
-    }
-
-    class ComprobanteResult {
-        <<Boundary DTO>>
-        +Guid ComprobanteId
-        +ComprobanteEstado Estado
-        +string ClaveNumerica
+    class ComprobanteEstado {
+        <<enumeration>>
+        Generado
+        Firmado
+        Enviado
+        PendienteValidacionHacienda
+        Aceptado
+        Rechazado
     }
 
     FiscalInvoiceController ..> IFiscalInvoiceService : usa
-    IFiscalInvoiceService <|.. FiscalInvoiceService : implementa
-    FiscalInvoiceService --> IXmlComprobanteBuilder : depende
-    FiscalInvoiceService --> ISignatureProvider : depende
-    FiscalInvoiceService --> IHaciendaClient : depende
-    FiscalInvoiceService --> IComprobanteRepository : depende
-    FiscalInvoiceService --> IOutboxWriter : depende
-    FiscalInvoiceService --> ComprobanteStateMachine : usa
-    IXmlComprobanteBuilder <|.. XmlComprobanteBuilderV44 : implementa
-    ISignatureProvider <|.. XadesEpesSignatureProvider : implementa
-    IHaciendaClient <|.. HaciendaHttpClient : implementa
-    IComprobanteRepository <|.. ComprobanteSqlRepository : implementa
-    IOutboxWriter <|.. OutboxWriter : implementa
-    ComprobanteSqlRepository ..> Comprobante : persiste
-    FiscalInvoiceController ..> ComprobanteRequest : recibe
-    FiscalInvoiceController ..> ComprobanteResult : retorna
-    FiscalInvoiceService ..> Comprobante : crea/modifica
+    FiscalEventConsumer ..> IFiscalInvoiceService : usa
+    FiscalInvoiceService ..|> IFiscalInvoiceService
+    FiscalInvoiceService --> ComprobanteStateMachine
+    FiscalInvoiceService --> IdempotencyGuard
+    FiscalInvoiceService ..> IXmlComprobanteBuilderResolver
+    FiscalInvoiceService ..> ISignatureProvider
+    FiscalInvoiceService ..> IHaciendaClient
+    FiscalInvoiceService ..> IComprobanteRepository
+    FiscalInvoiceService ..> IOutboxWriter
+    FiscalInvoiceService ..> IDocumentArchive
+    XmlBuilderResolver ..|> IXmlComprobanteBuilderResolver
+    XmlBuilderResolver ..> IXmlComprobanteBuilder : selecciona por version
+    XmlComprobanteBuilderV43 ..|> IXmlComprobanteBuilder
+    XmlComprobanteBuilderV44 ..|> IXmlComprobanteBuilder
+    XadesEpesSignatureProvider ..|> ISignatureProvider
+    HaciendaHttpClient ..|> IHaciendaClient
+    ComprobanteSqlRepository ..|> IComprobanteRepository
+    OutboxWriter ..|> IOutboxWriter
+    IComprobanteRepository ..> Comprobante
+    Comprobante --> ComprobanteEstado

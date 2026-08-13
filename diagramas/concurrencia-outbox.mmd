@@ -1,0 +1,59 @@
+---
+title: Modelo de concurrencia — relay de outbox, competing consumers y control de concurrencia — SmartBilling Connect
+---
+flowchart TB
+    START(["Cambio de negocio confirmado<br/>(API / Servicio Fiscal)"])
+
+    subgraph L1["Lane 1 — Hilo de request (transacción de negocio)"]
+        direction TB
+        A1["Escribe estado + evento en outbox<br/>en UNA sola transacción (ADR-002)"]
+        A2["COMMIT → responde al usuario<br/>(no espera al procesamiento asíncrono)"]
+    end
+
+    subgraph L2["Lane 2 — OutboxRelay (workers 1..N — competing consumers)"]
+        direction TB
+        B1["Claim de lote: UPDATE TOP(k) ... OUTPUT<br/>con bloqueo de fila (UPDLOCK, READPAST)"]
+        B2{"¿filas reclamadas?"}
+        B3["Publica evento(s) en RabbitMQ (AMQP)"]
+        B4["Marca outbox como publicado"]
+        B5["Nada que hacer — espera siguiente ciclo"]
+    end
+
+    subgraph L3["Lane 3 — Broker RabbitMQ (colas durables)"]
+        direction TB
+        C1["Encola evento (durable, prefetch por consumidor)"]
+        C2["Entrega a UN consumidor por mensaje<br/>(competing consumers, ack manual)"]
+    end
+
+    subgraph L4["Lane 4 — Consumidores (Fiscal / Notificación / Auditoría)"]
+        direction TB
+        D1{"IdempotencyGuard:<br/>¿event_id ya procesado?"}
+        D2["Descarta (ack) — exactamente un efecto (QS-06)"]
+        D3["Procesa efecto de negocio"]
+        D4["Update con concurrencia OPTIMISTA<br/>(rowversion) sobre Comprobante"]
+        D5{"¿conflicto de versión?"}
+        D6["ack — efecto aplicado"]
+        D7["nack/reintento (RetryPolicy, FIFO)"]
+    end
+
+    START --> A1 --> A2
+    A2 -.->|"disponible para relay"| B1
+    B1 --> B2
+    B2 -->|sí| B3 --> B4
+    B2 -->|no| B5
+    B3 --> C1 --> C2 --> D1
+    D1 -->|sí| D2
+    D1 -->|no| D3 --> D4 --> D5
+    D5 -->|no| D6
+    D5 -->|sí| D7 -.->|re-entrega| C2
+
+    classDef lane1 fill:#d1e7dd,stroke:#0f5132,color:#0f5132;
+    classDef lane2 fill:#eef6ff,stroke:#1f6feb,color:#0b2a4a;
+    classDef lane3 fill:#ffe5b4,stroke:#cc7a00,color:#5a3600;
+    classDef lane4 fill:#dbeafe,stroke:#1e40af,color:#0b2a4a;
+    classDef dec fill:#fff3cd,stroke:#997404,color:#5a3600;
+    class A1,A2 lane1;
+    class B1,B3,B4,B5 lane2;
+    class C1,C2 lane3;
+    class D2,D3,D4,D6,D7 lane4;
+    class B2,D1,D5 dec;

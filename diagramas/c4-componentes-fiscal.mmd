@@ -1,0 +1,60 @@
+---
+title: Vista de componentes (C4 nivel 3) — Servicio de Facturación Fiscal — SmartBilling Connect
+---
+flowchart TB
+    %% ===== Contenedores vecinos (fuera del servicio) =====
+    API["API de Aplicación<br/><i>ASP.NET Core 8</i><br/>(contenedor vecino)"]
+    BROKER[["Broker de Mensajería<br/><i>RabbitMQ</i>"]]
+    DBTX[("Base de Datos Transaccional<br/><i>SQL Server</i><br/>comprobantes + outbox")]
+    DOCS[("Almacén de Documentos<br/><i>MinIO (S3)</i>")]
+    HAC["API Ministerio de Hacienda CR<br/>(sistema externo)"]
+
+    %% ===== Interior del contenedor Servicio de Facturación Fiscal =====
+    subgraph FISCAL["Servicio de Facturación Fiscal — ASP.NET Core 8 (C#)"]
+        direction TB
+        CTRL["FiscalInvoiceController<br/><i>boundary — REST interno</i><br/>traduce request HTTP → servicio"]
+        AMQP["FiscalEventConsumer<br/><i>boundary — consumidor AMQP</i><br/>consume 'emitir_comprobante'"]
+        SVC["FiscalInvoiceService<br/><i>control — orquestador</i><br/>valida, coordina, transacciona"]
+        SM["ComprobanteStateMachine<br/><i>control</i><br/>transiciones válidas del estado"]
+        IDEMP["IdempotencyGuard<br/><i>control</i><br/>dedup por event_id (QS-06)"]
+        XML["XmlComprobanteBuilderV44<br/><i>control — IXmlComprobanteBuilder</i><br/>construye XML (intercambiable, QS-05)"]
+        SIGN["XadesEpesSignatureProvider<br/><i>control — ISignatureProvider</i><br/>firma XAdES-EPES"]
+        HCLI["HaciendaHttpClient<br/><i>boundary — IHaciendaClient</i><br/>reintentos + circuit breaker (QS-02)"]
+        REPO["ComprobanteSqlRepository<br/><i>entity — IComprobanteRepository</i><br/>persistencia + concurrencia optimista"]
+        OUT["OutboxWriter<br/><i>entity — IOutboxWriter</i><br/>evento de auditoría en misma tx (ADR-002)"]
+    end
+
+    %% ===== Relaciones de entrada =====
+    API -->|"REST/HTTPS interno (Bearer JWT)"| CTRL
+    BROKER -->|"AMQP — 'emitir_comprobante'"| AMQP
+
+    %% ===== Interior =====
+    CTRL -->|invoca| SVC
+    AMQP -->|invoca| SVC
+    SVC -->|verifica| IDEMP
+    SVC -->|transiciona| SM
+    SVC -->|construye XML| XML
+    SVC -->|firma| SIGN
+    SVC -->|envía| HCLI
+    SVC -->|lee/escribe estado| REPO
+    SVC -->|encola evento| OUT
+
+    %% ===== Relaciones de salida =====
+    HCLI -->|"XML firmado sobre HTTPS"| HAC
+    HAC -.->|"aceptado / rechazado"| HCLI
+    REPO -->|"SQL — ADO.NET/TLS"| DBTX
+    OUT -->|"SQL — insert outbox (misma tx)"| DBTX
+    SVC -->|"API S3 / HTTPS — archiva XML/PDF"| DOCS
+    SVC -.->|"publica 'estado_fiscal' (AMQP)"| BROKER
+
+    %% ===== Estilos =====
+    classDef boundary fill:#dbeafe,stroke:#1e40af,color:#0b2a4a;
+    classDef control fill:#eef6ff,stroke:#1f6feb,color:#0b2a4a;
+    classDef entity fill:#fff4e6,stroke:#cc7a00,color:#5a3600;
+    classDef ext fill:#e2e3e5,stroke:#6c757d,color:#212529;
+    classDef store fill:#fde8cd,stroke:#cc7a00,color:#5a3600;
+    class CTRL,AMQP,HCLI boundary;
+    class SVC,SM,IDEMP,XML,SIGN control;
+    class REPO,OUT entity;
+    class API,HAC,BROKER ext;
+    class DBTX,DOCS store;

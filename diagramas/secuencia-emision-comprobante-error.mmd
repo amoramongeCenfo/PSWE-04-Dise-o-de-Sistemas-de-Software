@@ -1,0 +1,59 @@
+sequenceDiagram
+    autonumber
+    participant WRK as Procesador Asincrono
+    participant CONS as FiscalEventConsumer
+    participant SVC as FiscalInvoiceService
+    participant IDEM as IdempotencyGuard
+    participant SM as ComprobanteStateMachine
+    participant REPO as ComprobanteSqlRepository
+    participant OBX as OutboxWriter
+    participant HAC as HaciendaHttpClient
+    participant MH as API Ministerio de Hacienda
+
+    WRK->>CONS: evento emitir_comprobante (AMQP, event_id)
+    CONS->>SVC: EmitirComprobanteAsync(request, ct)
+
+    alt A. Evento duplicado (QS-06)
+        SVC->>IDEM: TryBeginAsync(event_id, tenant_id)
+        IDEM-->>SVC: false (event_id ya procesado)
+        SVC->>IDEM: ObtenerResultadoPrevioAsync(event_id)
+        IDEM-->>SVC: ComprobanteResult previo
+        SVC-->>CONS: mismo resultado, sin efecto nuevo
+        CONS-->>WRK: ack (no se emite un segundo comprobante)
+    else B. Firma invalida (certificado vencido)
+        SVC->>SVC: Firmar(...) lanza CertificateExpiredException
+        SVC->>SM: Transicionar(Generado, EventoFallaFirma)
+        SM-->>SVC: Rechazado (motivo interno: certificado)
+        SVC->>REPO: GuardarAsync(comprobante[Rechazado], rowVersion)
+        SVC->>OBX: EscribirEnTransaccionAsync(evento auditoria de fallo, tx)
+        SVC-->>CONS: FiscalSignatureException (no se reintenta: error no transitorio)
+        CONS-->>WRK: nack sin requeue -> dead letter queue
+    else C. Hacienda no responde (timeout / 5xx) - QS-02
+        SVC->>HAC: EnviarComprobanteAsync(XmlFirmado, ct)
+        HAC->>MH: POST comprobante XML firmado
+        MH--xHAC: timeout / HTTP 503
+        HAC->>HAC: reintentos con backoff y circuito abierto
+        HAC-->>SVC: TimeoutException / HttpRequestException
+        SVC->>SM: Transicionar(Enviado, EventoSinRespuesta)
+        SM-->>SVC: PendienteValidacionHacienda
+        SVC->>REPO: GuardarAsync(comprobante[PendienteValidacionHacienda], rowVersion)
+        SVC->>OBX: EscribirEnTransaccionAsync(evento reintento + auditoria, tx)
+        SVC-->>CONS: ComprobanteResult(PendienteValidacionHacienda)
+        CONS-->>WRK: ack - el reintento FIFO lo gestiona el Componente 2 (Flujo 3, seccion 7.3)
+    else D. Hacienda rechaza el comprobante
+        HAC->>MH: POST comprobante XML firmado
+        MH-->>HAC: 200 Rechazado (codigo de motivo)
+        HAC-->>SVC: HaciendaResponse(Rechazado, motivo)
+        SVC->>SM: Transicionar(Enviado, RespuestaRechazado)
+        SM-->>SVC: Rechazado
+        SVC->>REPO: GuardarAsync(comprobante[Rechazado], rowVersion)
+        SVC->>OBX: EscribirEnTransaccionAsync(auditoria + notificacion de rechazo, tx)
+        note over SVC,OBX: La correccion se emite como nota de credito/debito (Flujo 5),<br/>nunca editando el comprobante original (invariante 1 de 1.6)
+    end
+
+    opt E. Conflicto de concurrencia optimista
+        REPO--xSVC: DbUpdateConcurrencyException (rowVersion desactualizada)
+        SVC->>REPO: ObtenerAsync(comprobanteId, tenantId) y reevaluar transicion
+        SVC->>SM: EsTransicionValida(estadoActual, evento)
+        SM-->>SVC: false -> se descarta el efecto duplicado
+    end

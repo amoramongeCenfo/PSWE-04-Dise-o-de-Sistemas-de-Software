@@ -1,0 +1,204 @@
+%% Figura 22 - Diagrama de clases de diseno: API de Aplicacion - Nucleo Comercial (Componente 3)
+classDiagram
+    direction TB
+
+    class PreventaController {
+        <<boundary>>
+        -IPreventaService _preventas
+        +RecibirHandoffAsync(HandoffPreventaRequest request, string idempotencyKey) Task~IActionResult~
+        +ListarAsync(PreventaFiltro filtro) Task~IActionResult~
+        +DescartarAsync(Guid preventaId) Task~IActionResult~
+    }
+
+    class CotizacionController {
+        <<boundary>>
+        -ICotizacionService _cotizaciones
+        -IEmisionOrquestador _emision
+        +ConvertirPreventaAsync(Guid preventaId, ConversionRequest request) Task~IActionResult~
+        +AprobarAsync(Guid cotizacionId) Task~IActionResult~
+        +EmitirFacturaAsync(Guid cotizacionId) Task~IActionResult~
+    }
+
+    class TenantAuthorizationMiddleware {
+        <<boundary>>
+        -IJwtValidator _jwt
+        +InvokeAsync(HttpContext contexto, RequestDelegate siguiente) Task
+        -ResolverTenant(ClaimsPrincipal principal) TenantContext
+        -ExigirAlcance(ClaimsPrincipal principal, string alcance) void
+    }
+
+    class ITenantContext {
+        <<interface>>
+        +Guid TenantId
+        +string Actor
+        +bool TieneRol(string rol)
+        +bool TieneAlcance(string alcance)
+    }
+
+    class IPreventaService {
+        <<interface>>
+        +RecibirPreventaAsync(HandoffPreventaRequest request, string idempotencyKey, CancellationToken ct) Task~PreventaResult~
+        +DescartarAsync(Guid preventaId) Task
+    }
+
+    class PreventaService {
+        <<control>>
+        -IIdempotencyKeyStore _claves
+        -IPreventaRepository _preventas
+        -IClienteRepository _clientes
+        -IOutboxWriter _outbox
+        -ITenantContext _tenant
+        -IUnitOfWork _uow
+        +RecibirPreventaAsync(HandoffPreventaRequest request, string idempotencyKey, CancellationToken ct) Task~PreventaResult~
+        +DescartarAsync(Guid preventaId) Task
+        -NormalizarContacto(HandoffPreventaRequest request) Cliente
+    }
+
+    class ICotizacionService {
+        <<interface>>
+        +ConvertirPreventaAsync(Guid preventaId, ConversionRequest request, CancellationToken ct) Task~CotizacionDto~
+        +AprobarAsync(Guid cotizacionId) Task~CotizacionDto~
+    }
+
+    class CotizacionService {
+        <<control>>
+        -IPreventaRepository _preventas
+        -ICotizacionRepository _cotizaciones
+        -CotizacionPolicy _politica
+        -IOutboxWriter _outbox
+        -IUnitOfWork _uow
+        +ConvertirPreventaAsync(Guid preventaId, ConversionRequest request, CancellationToken ct) Task~CotizacionDto~
+        +AprobarAsync(Guid cotizacionId) Task~CotizacionDto~
+    }
+
+    class CotizacionPolicy {
+        <<control>>
+        +EsFacturable(Cotizacion cotizacion, DateTime ahora) bool
+        +MotivoNoFacturable(Cotizacion cotizacion, DateTime ahora) string
+        +CalcularTotales(Cotizacion cotizacion) Totales
+    }
+
+    class IEmisionOrquestador {
+        <<interface>>
+        +EmitirDesdeCotizacionAsync(Guid cotizacionId, CancellationToken ct) Task~EmisionAceptadaDto~
+    }
+
+    class EmisionOrquestador {
+        <<control>>
+        -ICotizacionRepository _cotizaciones
+        -IFacturaRepository _facturas
+        -CotizacionPolicy _politica
+        -IOutboxWriter _outbox
+        -IUnitOfWork _uow
+        +EmitirDesdeCotizacionAsync(Guid cotizacionId, CancellationToken ct) Task~EmisionAceptadaDto~
+        -ConstruirEventoEmision(Factura factura) OutboxMessage
+    }
+
+    class IFiscalServiceClient {
+        <<interface>>
+        +ConsultarEstadoAsync(Guid comprobanteId, CancellationToken ct) Task~ComprobanteStatusDto~
+    }
+
+    class IIdempotencyKeyStore {
+        <<interface>>
+        +TryRegistrarAsync(string clave, Guid tenantId, IDbTransaction tx) Task~bool~
+        +ObtenerResultadoAsync(string clave, Guid tenantId) Task~PreventaResult~
+    }
+
+    class IPreventaRepository {
+        <<interface>>
+        +ObtenerAsync(Guid preventaId, Guid tenantId) Task~Preventa~
+        +AgregarAsync(Preventa preventa, IDbTransaction tx) Task
+        +ActualizarAsync(Preventa preventa, byte[] rowVersion) Task
+    }
+    class ICotizacionRepository {
+        <<interface>>
+        +ObtenerAsync(Guid cotizacionId, Guid tenantId) Task~Cotizacion~
+        +AgregarAsync(Cotizacion cotizacion, IDbTransaction tx) Task
+    }
+    class IOutboxWriter {
+        <<interface>>
+        +EscribirEnTransaccionAsync(OutboxMessage mensaje, IDbTransaction tx) Task
+    }
+
+    class IUnitOfWork {
+        <<interface>>
+        +BeginAsync(CancellationToken ct) Task~IDbTransaction~
+        +CommitAsync() Task
+        +RollbackAsync() Task
+    }
+
+    class Preventa {
+        <<entity>>
+        +Guid Id
+        +Guid TenantId
+        +string CanalOrigen
+        +string ContactoExterno
+        +PreventaEstado Estado
+        +Guid CotizacionId
+        +byte[] RowVersion
+        +MarcarConvertida(Guid cotizacionId) void
+    }
+
+    class Cotizacion {
+        <<entity>>
+        +Guid Id
+        +Guid TenantId
+        +Guid ClienteId
+        +CotizacionEstado Estado
+        +DateTime VigenteHasta
+        +decimal Total
+        +MarcarFacturada(Guid facturaId) void
+    }
+
+    class Cliente {
+        <<entity>>
+        +Guid Id
+        +Guid TenantId
+        +string Identificacion
+        +string CorreoElectronico
+    }
+
+    class PreventaEstado {
+        <<enumeration>>
+        Recibida
+        Descartada
+        Convertida
+    }
+    class CotizacionEstado {
+        <<enumeration>>
+        Borrador
+        Enviada
+        Aprobada
+        Vencida
+        Facturada
+    }
+
+    PreventaController ..> IPreventaService
+    CotizacionController ..> ICotizacionService
+    CotizacionController ..> IEmisionOrquestador
+    TenantAuthorizationMiddleware ..> ITenantContext
+    PreventaController ..> TenantAuthorizationMiddleware : protegido por
+    CotizacionController ..> TenantAuthorizationMiddleware : protegido por
+    PreventaService ..|> IPreventaService
+    CotizacionService ..|> ICotizacionService
+    EmisionOrquestador ..|> IEmisionOrquestador
+    PreventaService ..> IIdempotencyKeyStore
+    PreventaService ..> IPreventaRepository
+    PreventaService ..> IOutboxWriter
+    PreventaService ..> IUnitOfWork
+    CotizacionService ..> IUnitOfWork
+    EmisionOrquestador ..> IUnitOfWork
+    PreventaService ..> ITenantContext
+    CotizacionService ..> IPreventaRepository
+    CotizacionService ..> ICotizacionRepository
+    CotizacionService --> CotizacionPolicy
+    CotizacionService ..> IOutboxWriter
+    EmisionOrquestador --> CotizacionPolicy
+    EmisionOrquestador ..> IOutboxWriter
+    EmisionOrquestador ..> IFiscalServiceClient : solo consulta de estado
+    IPreventaRepository ..> Preventa
+    ICotizacionRepository ..> Cotizacion
+    Preventa --> PreventaEstado
+    Cotizacion --> CotizacionEstado
+    Cotizacion ..> Cliente

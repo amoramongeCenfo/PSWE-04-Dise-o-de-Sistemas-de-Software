@@ -1,0 +1,33 @@
+%% Figura 29 - Aplicacion real de Retry + Circuit Breaker sobre las dependencias externas
+stateDiagram-v2
+    direction LR
+    state "CERRADO<br/>(operacion normal)" as Cerrado
+    state "ABIERTO<br/>(no se golpea al destino)" as Abierto
+    state "SEMIABIERTO<br/>(sonda unica)" as Semi
+
+    [*] --> Cerrado
+    Cerrado --> Cerrado : llamada OK<br/>contador de fallos = 0
+    Cerrado --> Cerrado : fallo transitorio (timeout / 5xx)<br/>reintento con backoff exponencial + jitter<br/>[intentos < 3]
+    Cerrado --> Abierto : 5 fallos consecutivos<br/>o 50 por ciento de error en 30 s
+    Abierto --> Abierto : llamada entrante<br/>BrokenCircuitException inmediata<br/>(no consume la cola contra un destino caido)
+    Abierto --> Semi : transcurren 5 min de reposo
+    Semi --> Cerrado : la sonda responde OK<br/>se drena la cola en orden FIFO
+    Semi --> Abierto : la sonda falla<br/>nuevo periodo de reposo
+
+    note right of Abierto
+        Destinos protegidos por esta politica:
+        1. HaciendaHttpClient (10.1) -> API de Hacienda
+        2. FiscalHttpClient (10.2) -> Servicio de Facturacion Fiscal
+        3. SmtpNotificationSender (10.2) -> Servicio de Correo
+        Cada destino tiene su propio circuito: la caida del correo
+        NO abre el circuito hacia Hacienda.
+    end note
+
+    note left of Cerrado
+        Efecto en el dominio mientras el circuito no esta cerrado:
+        el comprobante queda en PendienteValidacionHacienda,
+        estado fiscal legitimo y auditable (1.6), NO un estado de error.
+        La cola durable conserva los mensajes: cero perdida ante reinicios (QS-02).
+        Errores NO transitorios (certificado vencido, 4xx de esquema)
+        se excluyen de la politica y van directo a dead letter queue.
+    end note

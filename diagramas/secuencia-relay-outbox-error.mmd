@@ -1,0 +1,58 @@
+sequenceDiagram
+    autonumber
+    participant RLY as OutboxRelayWorker
+    participant OREP as OutboxSqlRepository
+    participant PUB as RabbitMqPublisher
+    participant MQ as Broker RabbitMQ
+    participant CNS as EventConsumerWorker
+    participant DSP as EventDispatcher
+    participant IDEM as IdempotencyGuard
+    participant POL as ResiliencePolicyFactory
+    participant HND as "Handler (audit / notificacion / reintento fiscal)"
+    participant FIS as Servicio de Facturacion Fiscal
+
+    alt A. Falla la publicacion en el broker (at-least-once)
+        RLY->>OREP: ReclamarLoteAsync(max, lease)
+        OREP-->>RLY: OutboxBatch
+        RLY->>PUB: PublicarAsync(mensaje)
+        PUB--xMQ: conexion caida / sin publisher confirm
+        PUB-->>RLY: false
+        RLY->>OREP: LiberarLeaseAsync(outbox_id)
+        note over RLY,OREP: El mensaje NO se marca como publicado.<br/>Al expirar el lease vuelve a reclamarse: cero perdida (QS-02)
+    else B. Evento duplicado tras redelivery (QS-06)
+        MQ->>CNS: reentrega del mismo event_id
+        CNS->>DSP: DespacharAsync(evento)
+        DSP->>IDEM: TryBeginAsync(event_id)
+        IDEM-->>DSP: false (ya procesado)
+        DSP-->>CNS: DispatchResult(Duplicado, sin efecto)
+        CNS->>MQ: basic.ack (exactamente un efecto de negocio)
+    else C. Falla transitoria del destino (correo o Hacienda)
+        DSP->>POL: CrearPolitica(destino)
+        POL-->>DSP: backoff exponencial + jitter, circuit breaker
+        DSP->>HND: ManejarAsync(evento)
+        HND--xFIS: timeout / 503
+        HND-->>DSP: excepcion transitoria
+        DSP->>DSP: reintento 1..N con backoff
+        alt Se supera el umbral de fallos
+            POL-->>DSP: circuito ABIERTO (5 min)
+            DSP-->>CNS: DispatchResult(Diferido)
+            CNS->>MQ: nack con requeue (cola durable, orden FIFO)
+            note over CNS,MQ: Los comprobantes quedan en PendienteValidacionHacienda<br/>hasta la recuperacion (Flujo 3 de la seccion 7.3)
+        else El reintento tiene exito
+            HND-->>DSP: ok
+            DSP->>IDEM: CompletarAsync(event_id, resultado)
+            CNS->>MQ: basic.ack
+        end
+    else D. Falla la escritura de auditoria (RF-05 no negociable)
+        DSP->>HND: ManejarAsync(evento de auditoria)
+        HND--xDSP: error de escritura en el Almacen de Auditoria
+        DSP-->>CNS: DispatchResult(Fallido)
+        CNS->>MQ: nack con requeue
+        note over DSP,CNS: Nunca se hace ack de un evento sin auditoria persistida.<br/>Tras N reintentos pasa a la dead letter queue y se alerta a operaciones
+    end
+
+    opt E. Envenenamiento de cola (poison message)
+        CNS->>MQ: nack sin requeue tras N reintentos
+        MQ->>MQ: enruta a dead letter queue con motivo y contador
+        note over MQ: El evento se conserva para inspeccion manual,<br/>no se descarta ni bloquea el resto de la cola
+    end

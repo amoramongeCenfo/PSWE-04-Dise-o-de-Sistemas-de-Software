@@ -1,0 +1,47 @@
+%% Figura 15 - Analisis de robustez (BCE): Servicio de Facturacion Fiscal (Componente 1)
+flowchart LR
+    ACT1(["API de Aplicacion<br/>(actor sistema)"])
+    ACT2(["Ministerio de Hacienda<br/>(actor externo)"])
+
+    B1["FiscalInvoiceController<br/><i>boundary</i>"]
+    B2["FiscalEventConsumer<br/><i>boundary</i>"]
+    B3["HaciendaHttpClient<br/><i>boundary</i>"]
+    B4["ComprobanteRequest / ComprobanteResult<br/><i>boundary (DTO)</i>"]
+
+    C1(("FiscalInvoiceService<br/><i>control</i>"))
+    C2(("IdempotencyGuard<br/><i>control</i>"))
+    C3(("ComprobanteStateMachine<br/><i>control</i>"))
+    C4(("XmlBuilderResolver -> XmlComprobanteBuilderV44<br/><i>control</i>"))
+    C5(("XadesEpesSignatureProvider<br/><i>control</i>"))
+
+    E1[("Comprobante<br/><i>entity</i>")]
+    E2[("ComprobanteSqlRepository<br/><i>entity</i>")]
+    E3[("OutboxWriter<br/><i>entity</i>")]
+    E4[("DocumentArchive (MinIO)<br/><i>entity</i>")]
+
+    ACT1 -- "POST /interno/comprobantes" --> B1
+    ACT1 -- "evento emitir_comprobante (AMQP)" --> B2
+    B1 --> B4
+    B2 --> B4
+    B1 --> C1
+    B2 --> C1
+    C1 --> C2
+    C1 --> C4
+    C1 --> C5
+    C1 --> C3
+    C3 --> E1
+    C1 --> E2
+    C1 --> E3
+    C1 --> E4
+    C1 --> B3
+    B3 <-- "XML firmado / estado" --> ACT2
+    E2 --> E1
+
+    classDef boundary fill:#e8f1fb,stroke:#2f6fb0,stroke-width:1px,color:#123
+    classDef control fill:#fff4e0,stroke:#c98200,stroke-width:1px,color:#123
+    classDef entity fill:#eef7ee,stroke:#3f8f4f,stroke-width:1px,color:#123
+    classDef actor fill:#f2f2f2,stroke:#666,stroke-width:1px,color:#123
+    class B1,B2,B3,B4 boundary
+    class C1,C2,C3,C4,C5 control
+    class E1,E2,E3,E4 entity
+    class ACT1,ACT2 actor

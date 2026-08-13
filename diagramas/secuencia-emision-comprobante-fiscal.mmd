@@ -1,45 +1,48 @@
 sequenceDiagram
     autonumber
-    participant API as API de Aplicación
+    participant API as API de Aplicacion
     participant CTRL as FiscalInvoiceController
     participant SVC as FiscalInvoiceService
-    participant XML as XmlComprobanteBuilderV44
+    participant IDEM as IdempotencyGuard
+    participant BLD as XmlComprobanteBuilderV44
     participant SIG as XadesEpesSignatureProvider
-    participant FSM as ComprobanteStateMachine
+    participant ARC as "DocumentArchive (MinIO)"
     participant REPO as ComprobanteSqlRepository
-    participant OUT as OutboxWriter
+    participant OBX as OutboxWriter
+    participant SM as ComprobanteStateMachine
     participant HAC as HaciendaHttpClient
+    participant MH as API Ministerio de Hacienda
 
-    API->>CTRL: POST /fiscal/comprobantes (ComprobanteRequest)
+    API->>CTRL: POST /interno/comprobantes (ComprobanteRequest, event_id, JWT)
     CTRL->>SVC: EmitirComprobanteAsync(request, ct)
-    SVC->>SVC: ValidarRequest(request)
-    SVC->>XML: ConstruirXml(request)
-    XML-->>SVC: xmlContent
-    SVC->>SIG: Firmar(xmlContent, certificado)
-    SIG-->>SVC: xmlFirmado
-    SVC->>FSM: Transicionar(Generado, Firmado)
-    FSM-->>SVC: Firmado
-    SVC->>REPO: GuardarAsync(comprobante, tx)
-    SVC->>OUT: EncolarEventoAsync(eventoAuditoria, tx)
-    Note over REPO,OUT: Misma transacción (patrón outbox, ADR-002)
-    REPO-->>SVC: OK (commit)
-    SVC-->>CTRL: ComprobanteResult (Estado=Firmado)
-    CTRL-->>API: 202 Accepted (ComprobanteResult)
+    SVC->>IDEM: TryBeginAsync(event_id, tenant_id)
+    IDEM-->>SVC: true (evento nuevo)
+    SVC->>SVC: ValidarRequest(request) [tenant activo, lineas y montos > 0]
+    SVC->>BLD: ConstruirXml(request)
+    BLD-->>SVC: xml (conforme XSD v4.4)
+    SVC->>SIG: Firmar(xml, certificado del tenant)
+    SIG-->>SVC: XmlFirmado (XAdES-EPES)
+    SVC->>ARC: ArchivarAsync(clave_numerica, XmlFirmado)
+    ARC-->>SVC: uri del documento
+    SVC->>SM: Transicionar(Generado, EventoFirmar)
+    SM-->>SVC: Firmado
 
-    par Envío asíncrono a Hacienda
-        SVC->>HAC: EnviarComprobanteAsync(xmlFirmado, ct)
-        alt Camino feliz: Hacienda responde a tiempo
-            HAC-->>SVC: HaciendaResponse(Aceptado, claveNumerica)
-            SVC->>FSM: Transicionar(Firmado, RespuestaHaciendaOk)
-            FSM-->>SVC: Aceptado
-            SVC->>REPO: GuardarAsync(comprobante actualizado, tx)
-            SVC->>OUT: EncolarEventoAsync(eventoEstadoFinal, tx)
-        else Camino de error: timeout / HTTP 5xx de Hacienda (QS-02)
-            HAC-->>SVC: TimeoutException / HttpRequestException
-            SVC->>FSM: Transicionar(Firmado, FalloComunicacionHacienda)
-            FSM-->>SVC: PendienteValidacionHacienda
-            SVC->>REPO: GuardarAsync(comprobante actualizado, tx)
-            SVC->>OUT: EncolarEventoAsync(eventoPendiente, tx)
-            Note right of SVC: El comprobante queda encolado para reintento FIFO. El usuario ya recibió 202 Accepted (QS-02, degradación menor o igual a 2s)
-        end
+    rect rgb(235, 244, 235)
+    note over SVC,OBX: Una sola transaccion SQL (patron Outbox - ADR-002)
+    SVC->>REPO: GuardarAsync(comprobante[Firmado], rowVersion)
+    SVC->>OBX: EscribirEnTransaccionAsync(evento auditoria, tx)
+    OBX-->>SVC: ok (commit)
     end
+
+    SVC-->>CTRL: ComprobanteResult(Firmado, 202)
+    CTRL-->>API: 202 Accepted
+
+    SVC->>HAC: EnviarComprobanteAsync(XmlFirmado, ct)
+    HAC->>MH: POST comprobante XML firmado (HTTPS)
+    MH-->>HAC: 200 Aceptado (clave, fecha)
+    HAC-->>SVC: HaciendaResponse(Aceptado)
+    SVC->>SM: Transicionar(Enviado, RespuestaAceptado)
+    SM-->>SVC: Aceptado
+    SVC->>REPO: GuardarAsync(comprobante[Aceptado], rowVersion)
+    SVC->>OBX: EscribirEnTransaccionAsync(evento auditoria + notificacion, tx)
+    note over SVC,OBX: El Procesador Asincrono (Componente 2) releva el outbox,<br/>escribe la auditoria append-only y notifica al cliente final

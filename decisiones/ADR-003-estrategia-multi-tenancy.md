@@ -12,7 +12,9 @@ REST-03 obliga a que la plataforma sea SaaS multi-tenant. En un sistema fiscal e
 
 **Decisión**
 
-Usamos una sola base de datos compartida, con columna `tenant_id` en todas las tablas transaccionales y fiscales, y concentramos la resolución de ese `tenant_id` en la capa de autorización: Keycloak lo incluye como claim del JWT, y hay un único punto de autorización en la API de Aplicación que lo valida y lo propaga a cada consulta, en vez de confiar en que cada repositorio lo filtre por su cuenta.
+Usamos una sola base de datos compartida, con columna `tenant_id` en todas las tablas transaccionales y fiscales, y concentramos la resolución de ese `tenant_id` en la capa de autorización: Keycloak lo incluye como claim del JWT y un middleware de autorización lo valida y lo publica como `ITenantContext`, en vez de confiar en que cada repositorio lo filtre por su cuenta.
+
+Ese middleware es el mismo código desplegado en los dos servicios que tocan datos de tenant —la API de Aplicación y el Servicio de Facturación Fiscal—, así que hay una sola implementación que mantener y probar, pero ninguna puerta sin guardia. Los repositorios reciben el `ITenantContext` como dependencia obligatoria del constructor, de modo que no exista forma técnica de construir una consulta sin tenant resuelto, y dejamos activa la Row-Level Security de SQL Server como red final por debajo del repositorio. Son las cuatro capas que §13.1 valida contra QS-01.
 
 **Alternativas consideradas**
 

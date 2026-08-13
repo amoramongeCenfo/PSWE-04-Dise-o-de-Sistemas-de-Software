@@ -1,0 +1,35 @@
+%% Figura 27 - Aplicacion real del patron State en ComprobanteStateMachine
+stateDiagram-v2
+    direction LR
+    [*] --> Generado : EmitirComprobanteAsync (event_id nuevo)
+
+    Generado --> Firmado : EventoFirmar<br/>[XAdES-EPES aplicada]
+    Generado --> Rechazado : EventoFallaFirma<br/>[certificado vencido o ajeno]
+
+    Firmado --> Enviado : EventoEnviar<br/>[XML archivado en MinIO]
+
+    Enviado --> Aceptado : RespuestaAceptado<br/>[SOLO por respuesta de Hacienda]
+    Enviado --> Rechazado : RespuestaRechazado<br/>[codigo de motivo de Hacienda]
+    Enviado --> PendienteValidacionHacienda : EventoSinRespuesta<br/>[timeout o 5xx]
+
+    PendienteValidacionHacienda --> Enviado : EventoReintentar<br/>[circuito cerrado, FIFO]
+    PendienteValidacionHacienda --> Aceptado : RespuestaAceptado
+    PendienteValidacionHacienda --> Rechazado : RespuestaRechazado
+
+    Aceptado --> [*]
+    Rechazado --> [*]
+
+    note right of Aceptado
+        Estado TERMINAL e irreversible (invariante 1 de 1.6).
+        Toda transicion de salida esta ausente de la tabla:
+        editar o eliminar produce InvalidStateTransitionException -> 409.
+        La correccion se emite como NOTA DE CREDITO/DEBITO,
+        que es un comprobante nuevo con su propio ciclo.
+    end note
+
+    note left of Enviado
+        La transicion a Aceptado/Rechazado no existe como accion interna:
+        el sistema nunca fija el estado fiscal por su cuenta (fuente de verdad 1.6).
+        Una segunda respuesta identica de Hacienda no encuentra transicion valida
+        desde el estado terminal -> efecto nulo (QS-06).
+    end note

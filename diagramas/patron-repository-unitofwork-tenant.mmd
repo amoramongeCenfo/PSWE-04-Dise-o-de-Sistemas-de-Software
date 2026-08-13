@@ -1,0 +1,69 @@
+%% Figura 30 - Aplicacion real de Repository + Unit of Work con contexto de tenant obligatorio
+classDiagram
+    direction TB
+
+    class TenantAuthorizationMiddleware {
+        <<boundary>>
+        +InvokeAsync(HttpContext contexto, RequestDelegate siguiente) Task
+        -ResolverTenant(ClaimsPrincipal principal) TenantContext
+    }
+
+    class ITenantContext {
+        <<interface - dependencia OBLIGATORIA de todo repositorio>>
+        +Guid TenantId
+        +string Actor
+        +bool TieneRol(string rol)
+    }
+
+    class IUnitOfWork {
+        <<interface - Unit of Work>>
+        +BeginAsync(CancellationToken ct) Task~IDbTransaction~
+        +CommitAsync() Task
+        +RollbackAsync() Task
+    }
+
+    class PreventaService {
+        <<control - cliente del Unit of Work>>
+        +RecibirPreventaAsync(HandoffPreventaRequest request, string idempotencyKey, CancellationToken ct) Task~PreventaResult~
+    }
+    note for PreventaService "Un solo commit agrupa: clave de idempotencia + Preventa + evento outbox.<br/>Sin Unit of Work harian falta tres commits y existiria una ventana<br/>en la que la preventa existe sin clave registrada ni evento."
+
+    class IPreventaRepository {
+        <<interface - Repository>>
+        +ObtenerAsync(Guid preventaId, Guid tenantId) Task~Preventa~
+        +AgregarAsync(Preventa preventa, IDbTransaction tx) Task
+    }
+    class PreventaSqlRepository {
+        -ITenantContext _tenant
+        -SqlConnection _conexion
+        +ObtenerAsync(Guid preventaId, Guid tenantId) Task~Preventa~
+        +AgregarAsync(Preventa preventa, IDbTransaction tx) Task
+    }
+    note for PreventaSqlRepository "ITenantContext se inyecta por CONSTRUCTOR, no por parametro opcional:<br/>no existe forma de construir el repositorio sin tenant resuelto.<br/>Toda consulta emite WHERE tenant_id = @tenant (invariante 7 de 1.6)."
+
+    class IIdempotencyKeyStore {
+        <<interface - Repository>>
+        +TryRegistrarAsync(string clave, Guid tenantId, IDbTransaction tx) Task~bool~
+    }
+    class IOutboxWriter {
+        <<interface - Repository>>
+        +EscribirEnTransaccionAsync(OutboxMessage mensaje, IDbTransaction tx) Task
+    }
+
+    class ComprobanteSqlRepository {
+        <<mismo patron reutilizado en 10.1>>
+        -ITenantContext _tenant
+        +GuardarAsync(Comprobante comprobante, byte[] rowVersion) Task
+    }
+
+    TenantAuthorizationMiddleware ..> ITenantContext : publica por request
+    PreventaService ..> IUnitOfWork : Begin / Commit
+    PreventaService ..> IPreventaRepository
+    PreventaService ..> IIdempotencyKeyStore
+    PreventaService ..> IOutboxWriter
+    PreventaSqlRepository ..|> IPreventaRepository
+    PreventaSqlRepository --> ITenantContext : ctor
+    ComprobanteSqlRepository --> ITenantContext : ctor
+    IUnitOfWork ..> IPreventaRepository : misma IDbTransaction
+    IUnitOfWork ..> IIdempotencyKeyStore : misma IDbTransaction
+    IUnitOfWork ..> IOutboxWriter : misma IDbTransaction
